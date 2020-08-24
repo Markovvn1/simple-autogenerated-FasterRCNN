@@ -1,5 +1,8 @@
 ###  Automatically-generated file  ###
 
+# cfg = {'depth': 50, 'norm': 'BN', 'num_groups': 1, 'width_per_group': 64, 'stem_out_channels': 64, 'res2_out_channels': 256, 'stride_in_1x1': True, 'res5_dilation': 1}
+# test_only = True, lib_prefix = "libs."
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

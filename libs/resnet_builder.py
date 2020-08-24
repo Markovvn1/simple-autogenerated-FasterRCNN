@@ -53,6 +53,8 @@ def generate_resnet(cfg, test_only=False, lib_prefix="", engine="pytorch"):
 def generate_resnet_pytorch(cfg, test_only, lib_prefix):
 	res = []
 	res.append("###  Automatically-generated file  ###\n\n")
+	res.append(f"# cfg = {cfg}\n")
+	res.append(f"# test_only = {test_only}, lib_prefix = \"{lib_prefix}\"\n\n")
 
 	t = "\t"
 	t3 = "\t"*3
