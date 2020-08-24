@@ -8,19 +8,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class CNNMetrics(nn.Module):
+class CNNMetrics:
 
 	def __init__(self, in_channels, out_channels, stride):
-		super().__init__()
 		self.in_channels = in_channels
 		self.out_channels = out_channels
 		self.stride = stride
 
 
-class BasicStem(CNNMetrics):
+class BasicStem(CNNMetrics, nn.Module):
 
 	def __init__(self, in_channels, out_channels):
-		super().__init__(in_channels, out_channels, 4)
+		CNNMetrics.__init__(self, in_channels, out_channels, 4)
+		nn.Module.__init__(self)
 
 		self.conv1 = nn.Conv2d(in_channels, out_channels,
 			kernel_size=7, stride=2, padding=3)
@@ -31,11 +31,12 @@ class BasicStem(CNNMetrics):
 		return x
 
 
-class BottleneckBlock(CNNMetrics):
+class BottleneckBlock(CNNMetrics, nn.Module):
 
 	def __init__(self, in_channels, out_channels, stride,
 		bottleneck_channels, dilation):
-		super().__init__(in_channels, out_channels, stride)
+		CNNMetrics.__init__(self, in_channels, out_channels, stride)
+		nn.Module.__init__(self)
 
 		if in_channels == out_channels:
 			self.shortcut = lambda x: x

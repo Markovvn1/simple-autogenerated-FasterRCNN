@@ -79,16 +79,18 @@ def generate_resnet_pytorch(cfg, test_only, lib_prefix):
 
 	def generate_CNNMetrics():
 		res.append("""\
-class CNNMetrics(nn.Module):
+class CNNMetrics:
 
 	def __init__(self, in_channels, out_channels, stride):
-		super().__init__()
 		self.in_channels = in_channels
 		self.out_channels = out_channels
-		self.stride = stride
-""")
+		self.stride = stride\n\n\n""")
+
+
+	def generate_ModuleWithFreeze():
 		if not test_only:
 			res.append("""\
+class ModuleWithFreeze:
 
 	def freeze(self):
 		\"\"\"Freeze this module and return it.\"\"\"
@@ -96,9 +98,7 @@ class CNNMetrics(nn.Module):
 		for p in self.parameters():
 			p.requires_grad = False
 
-		return FrozenBatchNorm2d.freeze_all_batchnorms(self)
-""")
-		res.append("\n\n")
+		return FrozenBatchNorm2d.freeze_all_batchnorms(self)\n\n\n""")
 
 
 	def Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias, groups, dilation, norm=None, t=2):
@@ -122,10 +122,11 @@ class CNNMetrics(nn.Module):
 
 	def generate_BasicStem():
 		res.append(f"""\
-class BasicStem(CNNMetrics):
+class BasicStem(CNNMetrics{"" if test_only else ", ModuleWithFreeze"}, nn.Module):
 
 	def __init__(self, in_channels, out_channels{"" if test_only else ", norm_cls"}):
-		super().__init__(in_channels, out_channels, 4)
+		CNNMetrics.__init__(self, in_channels, out_channels, 4)
+		nn.Module.__init__(self)
 
 		self.conv1 = {Conv2d("in_channels", "out_channels", 7, 2, 3, False, None, None, "norm_cls(out_channels)", t=2)}
 """)
@@ -142,10 +143,11 @@ class BasicStem(CNNMetrics):
 
 	def generate_BasicBlock():
 		res.append(f"""\
-class BasicBlock(CNNMetrics):
+class BasicBlock(CNNMetrics{"" if test_only else ", ModuleWithFreeze"}, nn.Module):
 
 	def __init__(self, in_channels, out_channels, stride{"" if test_only else ", norm_cls"}):
-		super().__init__(in_channels, out_channels, stride)
+		CNNMetrics.__init__(self, in_channels, out_channels, stride)
+		nn.Module.__init__(self)
 
 		if in_channels == out_channels:
 			self.shortcut = lambda x: x
@@ -166,11 +168,12 @@ class BasicBlock(CNNMetrics):
 
 	def generate_BottleneckBlock():
 		res.append(f"""\
-class BottleneckBlock(CNNMetrics):
+class BottleneckBlock(CNNMetrics{"" if test_only else ", ModuleWithFreeze"}, nn.Module):
 
 	def __init__(self, in_channels, out_channels, stride,
 		bottleneck_channels, dilation{"" if test_only else ", norm_cls"}):
-		super().__init__(in_channels, out_channels, stride)
+		CNNMetrics.__init__(self, in_channels, out_channels, stride)
+		nn.Module.__init__(self)
 
 		if in_channels == out_channels:
 			self.shortcut = lambda x: x
@@ -355,6 +358,8 @@ class ResNet(nn.Module):
 
 	generate_imports()
 	generate_CNNMetrics()
+	if not test_only:
+		generate_ModuleWithFreeze()
 	generate_BasicStem()
 	if cfg["depth"] in [18, 34]:
 		generate_BasicBlock()
