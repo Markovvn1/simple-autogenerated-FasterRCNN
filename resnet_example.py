@@ -1,11 +1,36 @@
 ###  Automatically-generated file  ###
 
 # cfg = {'depth': 50, 'norm': 'BN', 'num_groups': 1, 'width_per_group': 64, 'stem_out_channels': 64, 'res2_out_channels': 256, 'stride_in_1x1': True, 'res5_dilation': 1}
-# test_only = True, lib_prefix = "libs."
+# test_only = True, integrate_backbone = True, lib_prefix = ".libs."
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+
+
+class Backbone(nn.Module):
+
+	"""
+	Properties of class:
+		in_channels (int): Количество каналов на входе
+		out_strides (dict[str, int]): Произведение всех stride до данного stage
+		out_channels (dict[str, int]): Количество каналов на данном stage
+		out_features (list[str]): Непустой список stage'ей, которые должны
+			быть возвращены после вызова forward. Отсортированный по
+			порядку выполнения
+		size_divisibility (int): разрешение входного слоя должно делиться на это число
+	"""
+
+	def __init__(self, in_channels, out_features, out_channels, out_strides, size_divisibility=1):
+		assert len(out_features) == len(out_channels) and len(out_channels) == len(out_strides)
+
+		super().__init__()
+		self.in_channels = in_channels
+		self.out_features = out_features
+		self.out_channels = out_channels
+		self.out_strides = out_strides
+		self.size_divisibility = size_divisibility
 
 
 class CNNMetrics:
@@ -71,18 +96,12 @@ class ResNetStage(CNNMetrics, nn.Sequential):
 		nn.Sequential.__init__(self, *res)
 
 
-class ResNet(nn.Module):
+class ResNet(Backbone):
 
 	"""
 	Properties of class:
-		stride (dict[str, int]): Произведение всех stride до данного stage
-		in_channels (int): Количество каналов на входе
-		out_channels (dict[str, int]): Количество каналов на данном stage
 		stages_list (list[str]): Непустой список всех stage'ей. Отсортированный
 			по порядку выполнения
-		out_features (list[str]): Непустой список stage'ей, которые должны
-			быть возвращены после вызова forward. Отсортированный по
-			порядку выполнения
 	"""
 
 	def __init__(self, in_channels, out_features=None):
@@ -103,19 +122,21 @@ class ResNet(nn.Module):
 		for item in out_features:
 			assert item in stages_list
 
-		super().__init__()
+		out_features = [i for i in stages_list if i in out_features] # sort
+		stages_list = stages_list[:stages_list.index(out_features[-1])+1]
 
-		self.in_channels = in_channels
-		self.out_features = [i for i in stages_list if i in out_features] # sort
-		self.stages_list = stages_list[:stages_list.index(self.out_features[-1])+1]
+		self.stages = self._build_net(in_channels, out_features, stages_list)
+		out_channels, out_stages = self._extract_channels_and_stages(self.stages)
+		super().__init__(in_channels, out_features, out_channels, out_stages)
 
-		self._register_stages(self._build_net(in_channels, self.stages_list))
+		for name, _, stage in self.stages:
+			self.add_module(name, stage) # register stages
 
-	def _build_net(self, in_channels, stages_list):
+	def _build_net(self, in_channels, out_features, stages_list):
 		res = []
 
 		stage = BasicStem(in_channels, 64)
-		res.append(("stem", "stem" in self.out_features, stage))
+		res.append(("stem", "stem" in out_features, stage))
 		if len(stages_list) == 1: return res
 
 		num_blocks_per_stage = [3, 4, 6, 3]
@@ -131,22 +152,23 @@ class ResNet(nn.Module):
 				num_blocks=num_blocks_per_stage[i],
 				bottleneck_channels=bottleneck_channels*p,
 				dilation=1)
-			res.append((stage_name, stage_name in self.out_features, stage))
+			res.append((stage_name, stage_name in out_features, stage))
 
 		return res
 
-	def _register_stages(self, stages):
-		self.stages = stages
-		self.stride = {}
-		self.out_channels = {}
+	def _extract_channels_and_stages(self, stages):
+		out_stride = {}
+		out_channels = {}
 		cur_stride = 1
 
-		for name, _, stage in stages:
-			self.add_module(name, stage) # register stages
+		# Расчет stride и out_channels
+		for name, is_result, stage in stages:
+			cur_stride *= stage.stride
+			if not is_result: continue
+			out_stride[name] = cur_stride
+			out_channels[name] = stage.out_channels
 
-			cur_stride *= stage.stride # Расчет stride и out_channels
-			self.stride[name] = cur_stride
-			self.out_channels[name] = stage.out_channels
+		return out_channels, out_stride
 
 	@torch.no_grad()
 	def forward(self, x):

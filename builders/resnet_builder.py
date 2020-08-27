@@ -1,5 +1,28 @@
+import os
+from shutil import copyfile
+from .backbone_builder import build_backbone, generate_backbone
 
-def generate_resnet(cfg, test_only=False, lib_prefix="", engine="pytorch"):
+
+def build_resnet(cfg, test_only=False, integrate_backbone=False, lib_prefix=".libs.", engine="pytorch"):
+	code = generate_resnet(cfg, test_only, integrate_backbone, lib_prefix, engine)
+
+	os.makedirs("build", exist_ok=True)
+
+	if not test_only:
+		os.makedirs("build/libs", exist_ok=True)
+		copyfile("libs/conv_wrapper.py", "build/libs/conv_wrapper.py")
+		copyfile("libs/freeze_batchnorm.py", "build/libs/freeze_batchnorm.py")
+
+	with open("build/resnet.py", "w") as f:
+		f.write(code)
+
+	if not integrate_backbone:
+		build_backbone()
+
+
+
+
+def generate_resnet(cfg, test_only=False, integrate_backbone=False, lib_prefix=".libs.", engine="pytorch"):
 	"""
 	Генерирует код для ResNet используя параметры из cfg.
 
@@ -15,6 +38,9 @@ def generate_resnet(cfg, test_only=False, lib_prefix="", engine="pytorch"):
 			"stride_in_1x1": Bool - Будет ли stride проходить в слое 1x1 или же в слое 3x3
 			"res5_dilation": Int - dilation в последнем слое. Возможные значения: 1, 2
 
+		integrate_backbone (Bool): Нужно ли интегрировать класс Backbone в этот модуль
+			Полезно если ResNet не будет являться частью другого модуля
+
 		test_only (Bool): Нужно ли генерировать код только для тестирования, или он
 			будет использоваться и для обучения
 
@@ -23,6 +49,7 @@ def generate_resnet(cfg, test_only=False, lib_prefix="", engine="pytorch"):
 	"""
 
 	assert isinstance(test_only, bool)
+	assert isinstance(integrate_backbone, bool)
 	assert isinstance(lib_prefix, str)
 	assert isinstance(engine, str)
 
@@ -45,16 +72,16 @@ def generate_resnet(cfg, test_only=False, lib_prefix="", engine="pytorch"):
 		assert cfg["res5_dilation"] in [1, 2]
 
 	if engine == "pytorch":
-		return generate_resnet_pytorch(cfg, test_only, lib_prefix)
+		return generate_resnet_pytorch(cfg, test_only, integrate_backbone, lib_prefix)
 	
 	raise NotImplementedError(f"Unimplemented engine {engine}")
 
 
-def generate_resnet_pytorch(cfg, test_only, lib_prefix):
+def generate_resnet_pytorch(cfg, test_only, integrate_backbone, lib_prefix):
 	res = []
 	res.append("###  Automatically-generated file  ###\n\n")
 	res.append(f"# cfg = {cfg}\n")
-	res.append(f"# test_only = {test_only}, lib_prefix = \"{lib_prefix}\"\n\n")
+	res.append(f"# test_only = {test_only}, integrate_backbone = {integrate_backbone}, lib_prefix = \"{lib_prefix}\"\n\n")
 
 	t = "\t"
 	t3 = "\t"*3
@@ -71,7 +98,13 @@ def generate_resnet_pytorch(cfg, test_only, lib_prefix):
 		if not test_only:
 			res.append("import fvcore.nn.weight_init as weight_init\n")
 
-			res.append(f"\nfrom {lib_prefix}freeze_batchnorm import FrozenBatchNorm2d\n")
+		res.append("\n")
+
+		if not integrate_backbone:
+			res.append("from .backbone import Backbone\n")
+
+		if not test_only:
+			res.append(f"from {lib_prefix}freeze_batchnorm import FrozenBatchNorm2d\n")
 			res.append(f"from {lib_prefix}conv_wrapper import Conv2d\n")
 
 		res.append("\n\n")
@@ -224,18 +257,12 @@ class ResNetStage(CNNMetrics, nn.Sequential):
 
 	def generate_ResNet():
 		res.append(f"""\
-class ResNet(nn.Module):
+class ResNet(Backbone):
 
 	\"\"\"
 	Properties of class:
-		stride (dict[str, int]): Произведение всех stride до данного stage
-		in_channels (int): Количество каналов на входе
-		out_channels (dict[str, int]): Количество каналов на данном stage
 		stages_list (list[str]): Непустой список всех stage'ей. Отсортированный
 			по порядку выполнения
-		out_features (list[str]): Непустой список stage'ей, которые должны
-			быть возвращены после вызова forward. Отсортированный по
-			порядку выполнения
 	\"\"\"
 
 	def __init__(self, in_channels, out_features=None):
@@ -256,19 +283,21 @@ class ResNet(nn.Module):
 		for item in out_features:
 			assert item in stages_list
 
-		super().__init__()
+		out_features = [i for i in stages_list if i in out_features] # sort
+		stages_list = stages_list[:stages_list.index(out_features[-1])+1]
 
-		self.in_channels = in_channels
-		self.out_features = [i for i in stages_list if i in out_features] # sort
-		self.stages_list = stages_list[:stages_list.index(self.out_features[-1])+1]
+		self.stages = self._build_net(in_channels, out_features, stages_list)
+		out_channels, out_stages = self._extract_channels_and_stages(self.stages)
+		super().__init__(in_channels, out_features, out_channels, out_stages)
 
-		self._register_stages(self._build_net(in_channels, self.stages_list))
+		for name, _, stage in self.stages:
+			self.add_module(name, stage) # register stages
 
-	def _build_net(self, in_channels, stages_list):
+	def _build_net(self, in_channels, out_features, stages_list):
 		res = []
 
 		stage = BasicStem(in_channels, {cfg["stem_out_channels"]}{"" if test_only else ", "+norm})
-		res.append(("stem", "stem" in self.out_features, stage))
+		res.append(("stem", "stem" in out_features, stage))
 		if len(stages_list) == 1: return res
 
 """)
@@ -304,22 +333,23 @@ class ResNet(nn.Module):
 				norm_cls={norm}""")
 
 		res.append(f""")
-			res.append((stage_name, stage_name in self.out_features, stage))
+			res.append((stage_name, stage_name in out_features, stage))
 
 		return res
 
-	def _register_stages(self, stages):
-		self.stages = stages
-		self.stride = {{}}
-		self.out_channels = {{}}
+	def _extract_channels_and_stages(self, stages):
+		out_stride = {{}}
+		out_channels = {{}}
 		cur_stride = 1
 
-		for name, _, stage in stages:
-			self.add_module(name, stage) # register stages
+		# Расчет stride и out_channels
+		for name, is_result, stage in stages:
+			cur_stride *= stage.stride
+			if not is_result: continue
+			out_stride[name] = cur_stride
+			out_channels[name] = stage.out_channels
 
-			cur_stride *= stage.stride # Расчет stride и out_channels
-			self.stride[name] = cur_stride
-			self.out_channels[name] = stage.out_channels
+		return out_channels, out_stride
 
 {t+"@torch.no_grad()"+n if test_only else ""}\
 	def forward(self, x):
@@ -357,6 +387,11 @@ class ResNet(nn.Module):
 
 
 	generate_imports()
+
+	if integrate_backbone:
+		res.append(generate_backbone(with_include=False))
+		res.append("\n\n")
+
 	generate_CNNMetrics()
 	if not test_only:
 		generate_ModuleWithFreeze()

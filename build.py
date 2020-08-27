@@ -1,4 +1,5 @@
-from libs.resnet_builder import generate_resnet
+import shutil
+from builders import build_resnet
 
 cfg = {
 	"depth": 50,
@@ -11,9 +12,8 @@ cfg = {
 	"res5_dilation": 1
 }
 
-print("Creating resnet.py")
+shutil.rmtree('build', ignore_errors=True)  # clean build directory
 
-with open("resnet.py", "w") as f:
-	f.write(generate_resnet(cfg, test_only=False, lib_prefix="libs."))
-
+# build_resnet(cfg, test_only=False, integrate_backbone=False, lib_prefix=".libs.")
+build_resnet(cfg, test_only=True, integrate_backbone=True, lib_prefix=".libs.")
 print("Done.")
