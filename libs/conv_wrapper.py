@@ -13,7 +13,7 @@ class Conv2d(nn.Conv2d):
 		if init is not None:
 			weight_init.__getattribute__(init)(self)
 
-		self.conv_args = args
+		self.conv_args = (in_channels, out_channels)
 		self.conv_kwargs = kwargs
 
 	def forward(self, x):

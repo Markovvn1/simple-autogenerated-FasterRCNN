@@ -316,7 +316,7 @@ class ResNet(Backbone):
 		Например, если freeze_at = 1, то заморожен будет только "stem".
 		\"\"\"
 		assert freeze_at in range(0, len(self.stages)+1)
-		for _, _, stage in self.stage[:freeze_at]: stage.freeze()
+		for _, stage in self.stages[:freeze_at]: stage.freeze()
 		return self
 
 	def extract(self):

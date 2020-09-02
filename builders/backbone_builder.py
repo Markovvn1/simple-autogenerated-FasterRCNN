@@ -45,6 +45,6 @@ class Backbone(nn.Module):
 	def assert_input(self, x):
 		assert x.dim() == 4 and x.size(1) == self.in_channels,\\
 			f"Input shape have to be (N, {self.in_channels}, H, W). Got {x.shape} instead!"
-		assert x.size(2) % self.size_divisibility == 0 and x.size(3) % self.size_divisibility == 0,
+		assert x.size(2) % self.size_divisibility == 0 and x.size(3) % self.size_divisibility == 0,\\
 			f"Размеры входных изображений должны делиться на self.size_divisibility"
 """
