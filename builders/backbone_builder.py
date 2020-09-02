@@ -1,5 +1,3 @@
-import os
-
 def build_backbone(engine="pytorch"):
 	with open("backbone.py", "w") as f:
 		f.write(generate_backbone())
@@ -8,6 +6,8 @@ def build_backbone(engine="pytorch"):
 
 
 def generate_backbone(engine="pytorch"):
+	assert isinstance(engine, str)
+	
 	if engine == "pytorch":
 		return generate_backbone_pytorch()
 	
@@ -15,7 +15,9 @@ def generate_backbone(engine="pytorch"):
 
 
 def generate_backbone_pytorch():
-	return """import torch.nn as nn
+	return """###  Automatically-generated file  ###
+
+import torch.nn as nn
 
 class Backbone(nn.Module):
 

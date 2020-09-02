@@ -11,7 +11,9 @@ MODEL:
     res2_out_channels: 256  # Количество каналов на выходе второго слоя
     stride_in_1x1: True  # Будет ли stride проходить в слое 1x1 или же в слое 3x3
     res5_dilation: 1  # dilation в последнем слое. {1, 2}
+    out_features: ["res2", "res3", "res4", "res5"]  # Какие слои будут выводиться.
   FPN:
     # Параметры для генерации FPN
     norm: "None"  # Тип слоя нормализации. {"None", "BN", "FrozenBN"}
     fuse_type: "sum"  # Способ объединения слоев. {"sum", "avg"}
+    out_channels: 256  # Количество слоев на выходе
