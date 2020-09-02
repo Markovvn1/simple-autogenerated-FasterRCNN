@@ -1,22 +1,23 @@
 import torch
 import torch.nn as nn
+import fvcore.nn.weight_init as weight_init
 
 class Conv2d(nn.Conv2d):
 
-	def __init__(self, *args, **kwargs):
-		norm = kwargs.pop("norm", None)
-		assert len(args) <= 3
-		super().__init__(*args, **kwargs)
-		self.norm = norm
+	def __init__(self, in_channels, out_channels, **kwargs):
+		norm_cls = kwargs.pop("norm_cls", None)
+		init = kwargs.pop("init", None)
+		super().__init__(in_channels, out_channels, **kwargs)
+		self.norm = norm_cls(out_channels) if norm_cls is not None else lambda x: x
+
+		if init is not None:
+			weight_init.__getattribute__(init)(self)
 
 		self.conv_args = args
 		self.conv_kwargs = kwargs
 
 	def forward(self, x):
-		x = super().forward(x)
-		if self.norm is not None:
-			x = self.norm(x)
-		return x
+		return self.norm(super().forward(x))
 
 	def extract(self):
 		"""Объединить conv и batchnorm в слой nn.Conv2d."""

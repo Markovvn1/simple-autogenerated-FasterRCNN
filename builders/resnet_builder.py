@@ -1,28 +1,16 @@
-import os
-from shutil import copyfile
-from .backbone_builder import build_backbone, generate_backbone
+def build_resnet(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
+	code = generate_resnet(cfg, test_only, lib_prefix, engine)
 
-
-def build_resnet(cfg, test_only=False, integrate_backbone=False, lib_prefix=".libs.", engine="pytorch"):
-	code = generate_resnet(cfg, test_only, integrate_backbone, lib_prefix, engine)
-
-	os.makedirs("build", exist_ok=True)
-
-	if not test_only:
-		os.makedirs("build/libs", exist_ok=True)
-		copyfile("libs/conv_wrapper.py", "build/libs/conv_wrapper.py")
-		copyfile("libs/freeze_batchnorm.py", "build/libs/freeze_batchnorm.py")
-
-	with open("build/resnet.py", "w") as f:
+	with open("resnet.py", "w") as f:
 		f.write(code)
 
-	if not integrate_backbone:
-		build_backbone()
+	if not test_only:
+		return {"conv_wrapper.py", "freeze_batchnorm.py"}
+	else:
+		return set()
 
 
-
-
-def generate_resnet(cfg, test_only=False, integrate_backbone=False, lib_prefix=".libs.", engine="pytorch"):
+def generate_resnet(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
 	"""
 	Генерирует код для ResNet используя параметры из cfg.
 
@@ -38,9 +26,6 @@ def generate_resnet(cfg, test_only=False, integrate_backbone=False, lib_prefix="
 			"stride_in_1x1": Bool - Будет ли stride проходить в слое 1x1 или же в слое 3x3
 			"res5_dilation": Int - dilation в последнем слое. Возможные значения: 1, 2
 
-		integrate_backbone (Bool): Нужно ли интегрировать класс Backbone в этот модуль
-			Полезно если ResNet не будет являться частью другого модуля
-
 		test_only (Bool): Нужно ли генерировать код только для тестирования, или он
 			будет использоваться и для обучения
 
@@ -49,7 +34,6 @@ def generate_resnet(cfg, test_only=False, integrate_backbone=False, lib_prefix="
 	"""
 
 	assert isinstance(test_only, bool)
-	assert isinstance(integrate_backbone, bool)
 	assert isinstance(lib_prefix, str)
 	assert isinstance(engine, str)
 
@@ -72,39 +56,31 @@ def generate_resnet(cfg, test_only=False, integrate_backbone=False, lib_prefix="
 		assert cfg["res5_dilation"] in [1, 2]
 
 	if engine == "pytorch":
-		return generate_resnet_pytorch(cfg, test_only, integrate_backbone, lib_prefix)
+		return generate_resnet_pytorch(cfg, test_only, lib_prefix)
 	
 	raise NotImplementedError(f"Unimplemented engine {engine}")
 
 
-def generate_resnet_pytorch(cfg, test_only, integrate_backbone, lib_prefix):
+def generate_resnet_pytorch(cfg, test_only, lib_prefix):
 	res = []
 	res.append("###  Automatically-generated file  ###\n\n")
-	res.append(f"# cfg = {cfg}\n")
-	res.append(f"# test_only = {test_only}, integrate_backbone = {integrate_backbone}, lib_prefix = \"{lib_prefix}\"\n\n")
 
 	t = "\t"
 	t3 = "\t"*3
 	t2 = "\t"*2
 	n = "\n"
 	q = "\""
-	norm = {"None": "NoBatchNorm", "BN": "nn.BatchNorm2d", "FrozenBN": "FrozenBatchNorm2d"}[cfg["norm"]]
+	norm = {"None": "None", "BN": "nn.BatchNorm2d", "FrozenBN": "FrozenBatchNorm2d"}[cfg["norm"]]
 
 	def generate_imports():
 		res.append("import torch\n")
 		res.append("import torch.nn as nn\n")
 		res.append("import torch.nn.functional as F\n")
-
-		if not test_only:
-			res.append("import fvcore.nn.weight_init as weight_init\n")
-
 		res.append("\n")
-
-		if not integrate_backbone:
-			res.append("from .backbone import Backbone\n")
+		res.append("from .backbone import Backbone\n")
 
 		if not test_only:
-			res.append(f"from {lib_prefix}freeze_batchnorm import FrozenBatchNorm2d\n")
+			res.append(f"""from {lib_prefix}freeze_batchnorm import {"FrozenBatchNorm2d, " if cfg["norm"] == "FrozenBN" else ""}ModuleWithFreeze\n""")
 			res.append(f"from {lib_prefix}conv_wrapper import Conv2d\n")
 
 		res.append("\n\n")
@@ -120,23 +96,9 @@ class CNNMetrics:
 		self.stride = stride\n\n\n""")
 
 
-	def generate_ModuleWithFreeze():
-		if not test_only:
-			res.append("""\
-class ModuleWithFreeze:
-
-	def freeze(self):
-		\"\"\"Freeze this module and return it.\"\"\"
-
-		for p in self.parameters():
-			p.requires_grad = False
-
-		return FrozenBatchNorm2d.freeze_all_batchnorms(self)\n\n\n""")
-
-
-	def Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias, groups, dilation, norm=None, t=2):
+	def Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias, groups, dilation, norm_cls=None, t=2):
 		if test_only:
-			norm = None
+			norm_cls = None
 			if cfg["norm"] != "None":
 				bias = None
 
@@ -149,7 +111,12 @@ class ModuleWithFreeze:
 		if bias is not None: res.append(f", bias={bias}")
 		if groups is not None: res.append(f", groups={groups}")
 		if dilation is not None: res.append(f", dilation={dilation}")
-		res.append(f",\n{t}norm={norm})" if norm is not None else ")")
+		if (norm_cls is not None) or (not test_only):
+			res.append(",\n"+t)
+			if norm_cls is not None: res.append(f"norm_cls={norm_cls}")
+			if (norm_cls is not None) and (not test_only): res.append(", ")
+			if not test_only: res.append(f"init=\"c2_msra_fill\"")
+		res.append(")")
 		return "".join(res)
 
 
@@ -161,11 +128,8 @@ class BasicStem(CNNMetrics{"" if test_only else ", ModuleWithFreeze"}, nn.Module
 		CNNMetrics.__init__(self, in_channels, out_channels, 4)
 		nn.Module.__init__(self)
 
-		self.conv1 = {Conv2d("in_channels", "out_channels", 7, 2, 3, False, None, None, "norm_cls(out_channels)", t=2)}
+		self.conv1 = {Conv2d("in_channels", "out_channels", 7, 2, 3, False, None, None, "norm_cls", t=2)}
 """)
-
-		if not test_only:
-			res.append("\t\tweight_init.c2_msra_fill(self.conv1)\n")
 
 		res.append("""
 	def forward(self, x):
@@ -185,14 +149,10 @@ class BasicBlock(CNNMetrics{"" if test_only else ", ModuleWithFreeze"}, nn.Modul
 		if in_channels == out_channels:
 			self.shortcut = lambda x: x
 		else:
-			self.shortcut = {Conv2d("in_channels", "out_channels", 1, "stride", None, False, None, None, "norm_cls(out_channels)", t=3)}
-{"" if test_only else t3+"weight_init.c2_msra_fill(self.shortcut)"+n}\
+			self.shortcut = {Conv2d("in_channels", "out_channels", 1, "stride", None, False, None, None, "norm_cls", t=3)}
 	
-		self.conv1 = {Conv2d("in_channels", "out_channels", 3, "stride", 1, False, None, None, "norm_cls(out_channels)", t=2)}
-{"" if test_only else t2+"weight_init.c2_msra_fill(self.conv1)"+n}\
-
-		self.conv2 = {Conv2d("out_channels", "out_channels", 3, 1, 1, False, None, None, "norm_cls(out_channels)", t=2)}
-{"" if test_only else t2+"weight_init.c2_msra_fill(self.conv2)"+n}\
+		self.conv1 = {Conv2d("in_channels", "out_channels", 3, "stride", 1, False, None, None, "norm_cls", t=2)}
+		self.conv2 = {Conv2d("out_channels", "out_channels", 3, 1, 1, False, None, None, "norm_cls", t=2)}
 
 	def forward(self, x):
 		out = F.relu_(self.conv1(x))
@@ -211,15 +171,11 @@ class BottleneckBlock(CNNMetrics{"" if test_only else ", ModuleWithFreeze"}, nn.
 		if in_channels == out_channels:
 			self.shortcut = lambda x: x
 		else:
-			self.shortcut = {Conv2d("in_channels", "out_channels", 1, "stride", None, False, None, None, "norm_cls(out_channels)", t=3)}
-{"" if test_only else t3+"weight_init.c2_msra_fill(self.shortcut)"+n}\
+			self.shortcut = {Conv2d("in_channels", "out_channels", 1, "stride", None, False, None, None, "norm_cls", t=3)}
 
-		self.conv1 = {Conv2d("in_channels", "bottleneck_channels", 1, "stride" if cfg["stride_in_1x1"] else None, None, False, None, None, "norm_cls(bottleneck_channels)", t=2)}
-{"" if test_only else t2+"weight_init.c2_msra_fill(self.conv1)"+n+n}\
-		self.conv2 = {Conv2d("bottleneck_channels", "bottleneck_channels", 3, None if cfg["stride_in_1x1"] else "stride", "dilation", False, cfg["num_groups"], "dilation", "norm_cls(bottleneck_channels)", t=2)}
-{"" if test_only else t2+"weight_init.c2_msra_fill(self.conv2)"+n+n}\
-		self.conv3 = {Conv2d("bottleneck_channels", "out_channels", 1, None, None, False, None, None, "norm_cls(out_channels)", t=2)}
-{"" if test_only else t2+"weight_init.c2_msra_fill(self.conv3)"+n}\
+		self.conv1 = {Conv2d("in_channels", "bottleneck_channels", 1, "stride" if cfg["stride_in_1x1"] else None, None, False, None, None, "norm_cls", t=2)}
+		self.conv2 = {Conv2d("bottleneck_channels", "bottleneck_channels", 3, None if cfg["stride_in_1x1"] else "stride", "dilation", False, cfg["num_groups"], "dilation", "norm_cls", t=2)}
+		self.conv3 = {Conv2d("bottleneck_channels", "out_channels", 1, None, None, False, None, None, "norm_cls", t=2)}
 
 	def forward(self, x):
 		out = F.relu_(self.conv1(x))
@@ -251,10 +207,6 @@ class ResNetStage(CNNMetrics, nn.Sequential):
 		res.append("\n\n")
 
 
-	def generate_NoBatchNorm():
-		res.append("NoBatchNorm = lambda x: None\n\n\n")
-
-
 	def generate_ResNet():
 		res.append(f"""\
 class ResNet(Backbone):
@@ -283,22 +235,21 @@ class ResNet(Backbone):
 		for item in out_features:
 			assert item in stages_list
 
+		super().__init__()
+
 		out_features = [i for i in stages_list if i in out_features] # sort
 		stages_list = stages_list[:stages_list.index(out_features[-1])+1]
 
-		self.stages = self._build_net(in_channels, out_features, stages_list)
-		out_channels, out_stages = self._extract_channels_and_stages(self.stages)
-		super().__init__(in_channels, out_features, out_channels, out_stages)
-
-		for name, _, stage in self.stages:
-			self.add_module(name, stage) # register stages
+		self._build_net(in_channels, out_features, stages_list)
+		out_channels, out_stride = self._extract_channels_and_stages()
+		self._init(in_channels, out_features, out_channels, out_stride)
 
 	def _build_net(self, in_channels, out_features, stages_list):
-		res = []
+		self.stages = []
 
-		stage = BasicStem(in_channels, {cfg["stem_out_channels"]}{"" if test_only else ", "+norm})
-		res.append(("stem", "stem" in out_features, stage))
-		if len(stages_list) == 1: return res
+		self.stem = stage = BasicStem(in_channels, {cfg["stem_out_channels"]}{"" if test_only else ", norm_cls="+norm})
+		self.stages.append(("stem" in out_features, stage))
+		if len(stages_list) == 1: return
 
 """)
 		num_blocks_per_stage = {
@@ -333,33 +284,26 @@ class ResNet(Backbone):
 				norm_cls={norm}""")
 
 		res.append(f""")
-			res.append((stage_name, stage_name in out_features, stage))
+			self.add_module(stage_name, stage) # register stages
+			self.stages.append((stage_name in out_features, stage))
 
-		return res
-
-	def _extract_channels_and_stages(self, stages):
-		out_stride = {{}}
-		out_channels = {{}}
+	def _extract_channels_and_stages(self):
+		out_stride = []
 		cur_stride = 1
 
-		# Расчет stride и out_channels
-		for name, is_result, stage in stages:
+		for is_result, stage in self.stages:
 			cur_stride *= stage.stride
-			if not is_result: continue
-			out_stride[name] = cur_stride
-			out_channels[name] = stage.out_channels
+			if is_result: out_stride.append(cur_stride)
 
-		return out_channels, out_stride
+		return [i[1].out_channels for i in self.stages if i[0]], out_stride
 
-{t+"@torch.no_grad()"+n if test_only else ""}\
 	def forward(self, x):
-		assert x.dim() == 4 and x.size(1) == self.stem.in_channels,\\
-			f"ResNet takes an input of shape (N, {{self.stem.in_channels}}, H, W). Got {{x.shape}} instead!"
+		self.assert_input(x)
 
-		res = {{}}
-		for name, is_result, stage in self.stages:
+		res = []
+		for is_result, stage in self.stages:
 			x = stage(x)
-			if is_result: res[name] = x
+			if is_result: res.append(x)
 
 		return res
 """)
@@ -380,29 +324,19 @@ class ResNet(Backbone):
 
 		Заменить все Conv2d на nn.Conv2d, объединив их с BatchNorm
 		\"\"\"
-
 		return Conv2d.extract_all(self)
 """)
 
 
 
 	generate_imports()
-
-	if integrate_backbone:
-		res.append(generate_backbone(with_include=False))
-		res.append("\n\n")
-
 	generate_CNNMetrics()
-	if not test_only:
-		generate_ModuleWithFreeze()
 	generate_BasicStem()
 	if cfg["depth"] in [18, 34]:
 		generate_BasicBlock()
 	else:
 		generate_BottleneckBlock()
 	generate_ResNetStage()
-	if not test_only and cfg["norm"] == "None":
-		generate_NoBatchNorm()
 	generate_ResNet()
 
 	return "".join(res)

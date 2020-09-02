@@ -1,6 +1,16 @@
 import torch
 import torch.nn as nn
 
+class ModuleWithFreeze:
+
+    def freeze(self):
+        """Freeze this module and return it."""
+
+        for p in self.parameters():
+            p.requires_grad = False
+
+        return FrozenBatchNorm2d.freeze_all_batchnorms(self)
+
 
 class FrozenBatchNorm2d(nn.Module):
 
