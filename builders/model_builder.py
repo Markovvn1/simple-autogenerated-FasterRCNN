@@ -12,8 +12,8 @@ def generate_model(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
 	assert isinstance(lib_prefix, str)
 	assert isinstance(engine, str)
 
-	assert isinstance(cfg["FPN"]["out_channels"], int) and cfg["FPN"]["out_channels"] > 0
-	assert all([i in ["stem", "res2", "res3", "res4", "res5"] for i in cfg["RESNETS"]["out_features"]])
+	assert isinstance(cfg["BACKBONE"]["FPN"]["out_channels"], int) and cfg["BACKBONE"]["FPN"]["out_channels"] > 0
+	assert all([i in ["stem", "res2", "res3", "res4", "res5"] for i in cfg["BACKBONE"]["RESNETS"]["out_features"]])
 
 	if engine == "pytorch":
 		return generate_model_pytorch(cfg, test_only, lib_prefix)
@@ -54,8 +54,8 @@ class Model(nn.Module):
 
 	def __init__(self, in_channels, num_classes):
 		super().__init__()
-		bottom_up = ResNet(in_channels=in_channels, out_features={cfg["RESNETS"]["out_features"]})
-		self.backbone = FPN(bottom_up, out_channels={cfg["FPN"]["out_channels"]})
+		bottom_up = ResNet(in_channels=in_channels, out_features={cfg["BACKBONE"]["RESNETS"]["out_features"]})
+		self.backbone = FPN(bottom_up, out_channels={cfg["BACKBONE"]["FPN"]["out_channels"]})
 
 	def forward(self, x):
 		return self.backbone(x)\n""")

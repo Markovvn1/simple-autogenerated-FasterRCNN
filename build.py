@@ -35,7 +35,7 @@ if not os.path.isfile(sys.argv[2]):
 with open(sys.argv[2], "r") as f:
 	cfg = yaml.safe_load(f)
 
-assert cfg["MODEL"]["backbone"] in ["resnet_fpn"]
+assert cfg["MODEL"]["BACKBONE"]["name"] in ["resnet_fpn"]
 
 
 
@@ -45,11 +45,14 @@ os.makedirs("build")
 os.chdir("build")
 
 libs = set()
-if cfg["MODEL"]["backbone"] == "resnet_fpn":
-	libs.update(build_backbone())
-	libs.update(build_resnet(cfg["MODEL"]["RESNETS"], test_only=TEST_ONLY, lib_prefix=".libs."))
-	libs.update(build_fpn(cfg["MODEL"]["FPN"], test_only=TEST_ONLY, lib_prefix=".libs."))
 
+def create_BACKBONE(cfg):
+	if cfg["name"] == "resnet_fpn":
+		libs.update(build_backbone())
+		libs.update(build_resnet(cfg["RESNETS"], test_only=TEST_ONLY, lib_prefix=".libs."))
+		libs.update(build_fpn(cfg["FPN"], test_only=TEST_ONLY, lib_prefix=".libs."))
+
+create_BACKBONE(cfg["MODEL"]["BACKBONE"])
 libs.update(build_model(cfg["MODEL"], test_only=TEST_ONLY, lib_prefix=".libs."))
 
 if len(libs) != 0:
