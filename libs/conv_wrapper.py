@@ -8,6 +8,7 @@ class Conv2d(nn.Conv2d):
 		norm_cls = kwargs.pop("norm_cls", None)
 		init = kwargs.pop("init", None)
 		super().__init__(in_channels, out_channels, **kwargs)
+		self.norm_cls = norm_cls
 		self.norm = norm_cls(out_channels) if norm_cls is not None else lambda x: x
 
 		if init is not None:
@@ -29,7 +30,7 @@ class Conv2d(nn.Conv2d):
 		for p in res.parameters():
 			p.requires_grad = False
 
-		if self.norm is None: return res
+		if self.norm_cls is None: return res
 
 		if isinstance(self.norm, nn.BatchNorm2d):
 			res_scale = self.norm.weight * (self.norm.running_var + self.norm.eps).rsqrt()

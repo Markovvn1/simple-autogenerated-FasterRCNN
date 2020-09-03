@@ -50,7 +50,7 @@ if cfg["MODEL"]["backbone"] == "resnet_fpn":
 	libs.update(build_resnet(cfg["MODEL"]["RESNETS"], test_only=TEST_ONLY, lib_prefix=".libs."))
 	libs.update(build_fpn(cfg["MODEL"]["FPN"], test_only=TEST_ONLY, lib_prefix=".libs."))
 
-libs.update(build_model(cfg["MODEL"]))
+libs.update(build_model(cfg["MODEL"], test_only=TEST_ONLY, lib_prefix=".libs."))
 
 if len(libs) != 0:
 	os.makedirs("libs", exist_ok=True)

@@ -90,20 +90,20 @@ class FPN(Backbone):
 		res.append(f"""\
 		self.tail_conv = []
 		for idx, in_channels in zip(out_features_idx[:-1], bottom_up.out_channels):
-			lateral_conv = Conv2d(in_channels, out_channels,
+			lateral_conv = {"nn." if test_only else ""}Conv2d(in_channels, out_channels,
 				kernel_size=1{", bias=False" if not use_bias else ""}{"" if test_only else temp})
 			self.add_module(f"fpn_lateral{{idx}}", lateral_conv)
 
-			output_conv = Conv2d(out_channels, out_channels,
+			output_conv = {"nn." if test_only else ""}Conv2d(out_channels, out_channels,
 				kernel_size=3, padding=1{", bias=False" if not use_bias else ""}{"" if test_only else temp})
-            self.add_module(f"fpn_output{{idx}}", output_conv)
+			self.add_module(f"fpn_output{{idx}}", output_conv)
 
 			self.tail_conv.append((lateral_conv, output_conv))
 
 		self.tail_conv = self.tail_conv[::-1]\n\n""")
 
 		res.append("""\
-	def _concat(x, top_down):
+	def _concat(self, x, top_down):
 		if top_down is None: return x
 		""")
 		if cfg["fuse_type"] == "sum":
