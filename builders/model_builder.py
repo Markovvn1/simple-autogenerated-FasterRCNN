@@ -1,28 +1,35 @@
+import os
 import zlib, base64
 
-def build_model(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
-	with open("model.py", "w") as f:
-		f.write(generate_model(cfg, test_only, lib_prefix))
+FOLDER = "."
 
-	return set()
+def build_model(cfg, test_only=False, engine="pytorch"):
+	os.makedirs(FOLDER, exist_ok=True)
+
+	code, libs = generate_model(cfg, test_only)
+
+	with open(os.path.join(FOLDER, "model.py"), "w") as f:
+		f.write(code)
+
+	return libs
 
 
-def generate_model(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
+def generate_model(cfg, test_only=False, engine="pytorch"):
 	assert isinstance(test_only, bool)
-	assert isinstance(lib_prefix, str)
 	assert isinstance(engine, str)
 
 	assert isinstance(cfg["BACKBONE"]["FPN"]["out_channels"], int) and cfg["BACKBONE"]["FPN"]["out_channels"] > 0
 	assert all([i in ["stem", "res2", "res3", "res4", "res5"] for i in cfg["BACKBONE"]["RESNETS"]["out_features"]])
 
 	if engine == "pytorch":
-		return generate_model_pytorch(cfg, test_only, lib_prefix)
+		return generate_model_pytorch(cfg, test_only)
 	
 	raise NotImplementedError(f"Unimplemented engine {engine}")
 
 
-def generate_model_pytorch(cfg, test_only, lib_prefix):
+def generate_model_pytorch(cfg, test_only):
 	res = []
+	libs = set()
 	res.append("###  Automatically-generated file  ###\n\n")
 
 	def generate_imports():
@@ -30,11 +37,13 @@ def generate_model_pytorch(cfg, test_only, lib_prefix):
 import torch
 import torch.nn as nn
 
-from .resnet import ResNet
-from .fpn import FPN\n""")
+from .parts import ResNet, FPN\n""")
+		libs.add("parts/resnet.py")
+		libs.add("parts/fpn.py")
 
 		if not test_only:
-			res.append(f"from {lib_prefix}conv_wrapper import Conv2d\n")
+			res.append(f"from .layers import Conv2d\n")
+			libs.add("layers/conv_wrapper.py")
 
 		res.append("\n")
 
@@ -73,4 +82,4 @@ class Model(nn.Module):
 	generate_config()
 	generate_Model()
 
-	return "".join(res)
+	return "".join(res), libs

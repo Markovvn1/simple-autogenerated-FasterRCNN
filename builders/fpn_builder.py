@@ -1,16 +1,19 @@
-def build_fpn(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
-	code = generate_fpn(cfg, test_only, lib_prefix, engine)
+import os
 
-	with open("fpn.py", "w") as f:
+FOLDER = "parts"
+
+def build_fpn(cfg, test_only=False, engine="pytorch"):
+	os.makedirs(FOLDER, exist_ok=True)
+
+	code, libs = generate_fpn(cfg, test_only, engine)
+
+	with open(os.path.join(FOLDER, "fpn.py"), "w") as f:
 		f.write(code)
 
-	if not test_only:
-		return {"conv_wrapper.py"}
-	else:
-		return set()
+	return libs
 
 
-def generate_fpn(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
+def generate_fpn(cfg, test_only=False, engine="pytorch"):
 	"""
 	Генерирует код для FPN используя параметры из cfg.
 
@@ -29,19 +32,19 @@ def generate_fpn(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
 	"""
 
 	assert isinstance(test_only, bool)
-	assert isinstance(lib_prefix, str)
 	assert isinstance(engine, str)
 
 	assert cfg["norm"] in ["None", "BN", "FrozenBN"]
 	assert cfg["fuse_type"] in ["sum", "avg"]
 
 	if engine == "pytorch":
-		return generate_fpn_pytorch(cfg, test_only, lib_prefix)
+		return generate_fpn_pytorch(cfg, test_only)
 	
 	raise NotImplementedError(f"Unimplemented engine {engine}")
 
 
-def generate_fpn_pytorch(cfg, test_only=False, lib_prefix=".libs."):
+def generate_fpn_pytorch(cfg, test_only=False):
+	libs = set()
 	res = []
 	res.append("###  Automatically-generated file  ###\n\n")
 
@@ -54,12 +57,16 @@ def generate_fpn_pytorch(cfg, test_only=False, lib_prefix=".libs."):
 		res.append("import torch.nn as nn\n")
 		res.append("import torch.nn.functional as F\n")
 		res.append("\n")
-		res.append("from .backbone import Backbone\n")
+		res.append("from . import Backbone\n")
+		libs.add("parts/backbone.py")
 
 		if not test_only:
+			res.append("from ..layers import Conv2d")
+			libs.add("layers/conv_wrapper.py")
 			if cfg["norm"] == "FrozenBN":
-				res.append(f"from {lib_prefix}freeze_batchnorm import FrozenBatchNorm2d\n")
-			res.append(f"from {lib_prefix}conv_wrapper import Conv2d\n")
+				res.append(", FrozenBatchNorm2d")
+				libs.add("layers/freeze_batchnorm.py")
+			res.append("\n")
 
 		res.append("\n\n")
 
@@ -132,4 +139,4 @@ class FPN(Backbone):
 	generate_imports()
 	generate_FPN()
 
-	return "".join(res)
+	return "".join(res), libs

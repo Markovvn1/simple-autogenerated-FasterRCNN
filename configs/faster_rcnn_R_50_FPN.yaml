@@ -17,3 +17,22 @@ MODEL:
       fuse_type: "sum"  # Способ объединения слоев. {"sum", "avg"}
       out_channels: 256  # Количество слоев на выходе
   PROPOSAL_GENERATOR:
+    name: "RPN"  # Тип используемого PROPOSAL_GENERATOR. {"RPN"}
+    RPN:
+      head_name: "StandardRPNHead"
+      batch_size_per_image: 256
+      BBOX_REG:
+        loss_type: "smooth_l1"
+        loss_weight: 1.0
+        weights: [1.0, 1.0, 1.0, 1.0]
+      boundary_thresh: -1
+      iou_labels: [0, -1, 1]
+      iou_thresholds: [0.3, 0.7]
+      loss_weight: 1.0
+      nms_thress: 0.7
+      POSITIVE_FRACTION: 0.5
+      POST_NMS_TOPK_TEST: 1000
+      POST_NMS_TOPK_TRAIN: 1000
+      PRE_NMS_TOPK_TEST: 1000
+      PRE_NMS_TOPK_TRAIN: 2000
+      SMOOTH_L1_BETA: 0.0

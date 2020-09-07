@@ -1,16 +1,19 @@
-def build_resnet(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
-	code = generate_resnet(cfg, test_only, lib_prefix, engine)
+import os
 
-	with open("resnet.py", "w") as f:
+FOLDER = "parts"
+
+def build_resnet(cfg, test_only=False, engine="pytorch"):
+	os.makedirs(FOLDER, exist_ok=True)
+	
+	code, libs = generate_resnet(cfg, test_only, engine)
+
+	with open(os.path.join(FOLDER, "resnet.py"), "w") as f:
 		f.write(code)
 
-	if not test_only:
-		return {"conv_wrapper.py", "freeze_batchnorm.py"}
-	else:
-		return set()
+	return libs
 
 
-def generate_resnet(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch"):
+def generate_resnet(cfg, test_only=False, engine="pytorch"):
 	"""
 	Генерирует код для ResNet используя параметры из cfg.
 
@@ -34,7 +37,6 @@ def generate_resnet(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch")
 	"""
 
 	assert isinstance(test_only, bool)
-	assert isinstance(lib_prefix, str)
 	assert isinstance(engine, str)
 
 	is_pos_int = lambda x: isinstance(x, int) and x > 0
@@ -56,13 +58,14 @@ def generate_resnet(cfg, test_only=False, lib_prefix=".libs.", engine="pytorch")
 		assert cfg["res5_dilation"] in [1, 2]
 
 	if engine == "pytorch":
-		return generate_resnet_pytorch(cfg, test_only, lib_prefix)
+		return generate_resnet_pytorch(cfg, test_only)
 	
 	raise NotImplementedError(f"Unimplemented engine {engine}")
 
 
-def generate_resnet_pytorch(cfg, test_only, lib_prefix):
+def generate_resnet_pytorch(cfg, test_only):
 	res = []
+	libs = set()
 	res.append("###  Automatically-generated file  ###\n\n")
 
 	t = "\t"
@@ -77,11 +80,13 @@ def generate_resnet_pytorch(cfg, test_only, lib_prefix):
 		res.append("import torch.nn as nn\n")
 		res.append("import torch.nn.functional as F\n")
 		res.append("\n")
-		res.append("from .backbone import Backbone\n")
+		res.append("from . import Backbone\n")
+		libs.add("parts/backbone.py")
 
 		if not test_only:
-			res.append(f"""from {lib_prefix}freeze_batchnorm import {"FrozenBatchNorm2d, " if cfg["norm"] == "FrozenBN" else ""}ModuleWithFreeze\n""")
-			res.append(f"from {lib_prefix}conv_wrapper import Conv2d\n")
+			res.append(f"""from ..layers import Conv2d, {"FrozenBatchNorm2d, " if cfg["norm"] == "FrozenBN" else ""}ModuleWithFreeze\n""")
+			libs.add("layers/conv_wrapper.py")
+			libs.add("layers/freeze_batchnorm.py")
 
 		res.append("\n\n")
 
@@ -339,4 +344,4 @@ class ResNet(Backbone):
 	generate_ResNetStage()
 	generate_ResNet()
 
-	return "".join(res)
+	return "".join(res), libs

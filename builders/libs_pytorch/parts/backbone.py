@@ -1,27 +1,10 @@
-def build_backbone(engine="pytorch"):
-	with open("backbone.py", "w") as f:
-		f.write(generate_backbone())
-
-	return set()
-
-
-def generate_backbone(engine="pytorch"):
-	assert isinstance(engine, str)
-	
-	if engine == "pytorch":
-		return generate_backbone_pytorch()
-	
-	raise NotImplementedError(f"Unimplemented engine {engine}")
-
-
-def generate_backbone_pytorch():
-	return """###  Automatically-generated file  ###
+###  Automatically-generated file  ###
 
 import torch.nn as nn
 
 class Backbone(nn.Module):
 
-	\"\"\"
+	"""
 	Properties of class:
 		in_channels (int): Количество каналов на входе
 		out_strides (list[int]): Произведение всех stride до данного stage
@@ -30,7 +13,7 @@ class Backbone(nn.Module):
 			быть возвращены после вызова forward. Отсортированный по
 			порядку выполнения
 		size_divisibility (int): разрешение входного слоя должно делиться на это число
-	\"\"\"
+	"""
 
 	def __init__(self):
 		super().__init__()		
@@ -45,8 +28,7 @@ class Backbone(nn.Module):
 		self.size_divisibility = size_divisibility
 
 	def assert_input(self, x):
-		assert x.dim() == 4 and x.size(1) == self.in_channels,\\
+		assert x.dim() == 4 and x.size(1) == self.in_channels,\
 			f"Input shape have to be (N, {self.in_channels}, H, W). Got {x.shape} instead!"
-		assert x.size(2) % self.size_divisibility == 0 and x.size(3) % self.size_divisibility == 0,\\
+		assert x.size(2) % self.size_divisibility == 0 and x.size(3) % self.size_divisibility == 0,\
 			f"Размеры входных изображений должны делиться на self.size_divisibility"
-"""

@@ -2,9 +2,11 @@ import os
 import sys
 import shutil
 import yaml
+import collections
 
-from builders import build_resnet, build_backbone, build_fpn, build_model
-
+from builders import build_resnet, build_fpn
+from builders import build_rpn
+from builders import build_model
 
 def unknown_value(value):
 	print(f"Неизвестное значение {value}\n")
@@ -35,8 +37,6 @@ if not os.path.isfile(sys.argv[2]):
 with open(sys.argv[2], "r") as f:
 	cfg = yaml.safe_load(f)
 
-assert cfg["MODEL"]["BACKBONE"]["name"] in ["resnet_fpn"]
-
 
 
 
@@ -44,21 +44,51 @@ shutil.rmtree('build', ignore_errors=True)  # clean build directory
 os.makedirs("build")
 os.chdir("build")
 
-libs = set()
+def safe_clone(name, test_only=None):
+	os.makedirs(os.path.dirname(name), exist_ok=True)
+	shutil.copyfile("../builders/libs_pytorch/"+name, name)
 
-def create_BACKBONE(cfg):
-	if cfg["name"] == "resnet_fpn":
-		libs.update(build_backbone())
-		libs.update(build_resnet(cfg["RESNETS"], test_only=TEST_ONLY, lib_prefix=".libs."))
-		libs.update(build_fpn(cfg["FPN"], test_only=TEST_ONLY, lib_prefix=".libs."))
+libs_maps = {
+	"model.py": (build_model, cfg["MODEL"]),
+	"parts/resnet.py": (build_resnet, cfg["MODEL"]["BACKBONE"]["RESNETS"]),
+	"parts/fpn.py": (build_fpn, cfg["MODEL"]["BACKBONE"]["FPN"]),
+	"parts/rpn.py": (build_rpn, cfg["MODEL"]["PROPOSAL_GENERATOR"]["RPN"]),
+	"parts/backbone.py": (safe_clone, "parts/backbone.py"),
+	"layers/conv_wrapper.py": (safe_clone, "layers/conv_wrapper.py"),
+	"layers/freeze_batchnorm.py": (safe_clone, "layers/freeze_batchnorm.py"),
+}
 
-create_BACKBONE(cfg["MODEL"]["BACKBONE"])
-libs.update(build_model(cfg["MODEL"], test_only=TEST_ONLY, lib_prefix=".libs."))
+import_maps = {
+	"parts/resnet.py": ["ResNet"],
+	"parts/fpn.py": ["FPN"],
+	"parts/rpn.py": ["RPN"],
+	"parts/backbone.py": ["Backbone"],
+	"layers/conv_wrapper.py": ["Conv2d"],
+	"layers/freeze_batchnorm.py": ["ModuleWithFreeze", "FrozenBatchNorm2d"],
+}
 
-if len(libs) != 0:
-	os.makedirs("libs", exist_ok=True)
+def create_with_dependencies(lib):
+	if libs_maps[lib] is None: return
+	func = libs_maps[lib]; libs_maps[lib] = None
+	print(f"Generate {lib}")
+	res = func[0](func[1], test_only=TEST_ONLY)
+	if res is None: return
+	for item in res:
+		create_with_dependencies(item)
 
-	for item in libs:
-		shutil.copyfile("../libs/"+item, "libs/"+item)
+create_with_dependencies("model.py")
+
+init_imports = collections.defaultdict(list)
+for k in import_maps:
+	if libs_maps[k] is not None: continue
+	import_file = os.path.basename(k)
+	assert import_file.endswith(".py")
+	init_imports[os.path.dirname(k)].append(f"from .{import_file[:-3]} import " + ", ".join(import_maps[k]))
+
+for path, v in init_imports.items():
+	print(f"Generate {path}/__init__.py")
+	with open(path+"/__init__.py", "w") as f:
+		f.write("###  Automatically-generated file  ###\n\n")
+		f.write("\n".join(v)+"\n")
 
 print("Done.")
