@@ -62,6 +62,9 @@ def generate_rpn_pytorch(cfg, test_only):
 		res.append("import torch.nn as nn\n")
 		res.append("import torch.nn.functional as F\n\n")
 
+		res.append("from ..utils import boxes\n")
+		libs.add("utils/boxes.py")
+
 	def generate_StandardRPNHead():
 		res.append("""\
 class StandardRPNHead(nn.Module):

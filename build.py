@@ -56,15 +56,17 @@ libs_maps = {
 	"parts/backbone.py": (safe_clone, "parts/backbone.py"),
 	"layers/conv_wrapper.py": (safe_clone, "layers/conv_wrapper.py"),
 	"layers/freeze_batchnorm.py": (safe_clone, "layers/freeze_batchnorm.py"),
+	"utils/boxes.py": (safe_clone, "utils/boxes.py"),
 }
 
 import_maps = {
-	"parts/resnet.py": ["ResNet"],
-	"parts/fpn.py": ["FPN"],
-	"parts/rpn.py": ["RPN"],
-	"parts/backbone.py": ["Backbone"],
-	"layers/conv_wrapper.py": ["Conv2d"],
-	"layers/freeze_batchnorm.py": ["ModuleWithFreeze", "FrozenBatchNorm2d"],
+	"parts/resnet.py": "from .resnet import ResNet",
+	"parts/fpn.py": "from .fpn import FPN",
+	"parts/rpn.py": "from .rpn import RPN",
+	"parts/backbone.py": "from .backbone import Backbone",
+	"layers/conv_wrapper.py": "from conv_wrapper import Conv2d",
+	"layers/freeze_batchnorm.py": "from freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
+	"utils/boxes.py": "from . import boxes"
 }
 
 def create_with_dependencies(lib):
@@ -83,7 +85,7 @@ for k in import_maps:
 	if libs_maps[k] is not None: continue
 	import_file = os.path.basename(k)
 	assert import_file.endswith(".py")
-	init_imports[os.path.dirname(k)].append(f"from .{import_file[:-3]} import " + ", ".join(import_maps[k]))
+	init_imports[os.path.dirname(k)].append(import_maps[k])
 
 for path, v in init_imports.items():
 	print(f"Generate {path}/__init__.py")

@@ -37,9 +37,10 @@ def generate_model_pytorch(cfg, test_only):
 import torch
 import torch.nn as nn
 
-from .parts import ResNet, FPN\n""")
+from .parts import ResNet, FPN, RPN\n""")
 		libs.add("parts/resnet.py")
 		libs.add("parts/fpn.py")
+		libs.add("parts/rpn.py")
 
 		if not test_only:
 			res.append(f"from .layers import Conv2d\n")
