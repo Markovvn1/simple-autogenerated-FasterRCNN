@@ -60,13 +60,15 @@ def generate_rpn_pytorch(cfg, test_only):
 	def generate_imports():
 		res.append("import torch\n")
 		res.append("import torch.nn as nn\n")
-		res.append("import torch.nn.functional as F\n\n")
+		res.append("import torch.nn.functional as F\n")
+		res.append("import torchvision.ops.boxes as box_ops\n\n")
 
-		res.append("from ..utils import boxes\n")
+		res.append("from ..utils import Boxes, MultiAnchors\n\n")
 		libs.add("utils/boxes.py")
+		libs.add("utils/anchors.py")
 
 	def generate_StandardRPNHead():
-		res.append("""\
+		res.append("""
 class StandardRPNHead(nn.Module):
 
 	\"\"\"
@@ -100,10 +102,73 @@ class StandardRPNHead(nn.Module):
 		for x in features: assert (x.dim() == 4) and (x.size(1) == self.in_channels)
 
 		features = [F.relu(self.conv(x)) for x in features]
-		return [self.logits_reshape(self.objectness_logits(x)) for x in features],
+		return [self.logits_reshape(self.objectness_logits(x)) for x in features],\\
 			[self.deltas_reshape(self.anchor_deltas(x)) for x in features]\n\n""")
+
+	def generate_SelectRPNProposals():
+		res.append("""
+class SelectRPNProposals(nn.Module):
+
+	def __init__(self, pre_topk, nms_thresh, post_topk, min_box_size):
+		super().__init__()
+		self.pre_topk = pre_topk
+		self.nms_thresh = nms_thresh
+		self.post_topk = post_topk
+		self.min_box_size = min_box_size\n""")
+
+		res.append("""
+	def forward(self, proposals, logits, image_sizes):
+		device = proposals[0].device
+		batch_idx = torch.arange(len(proposals[0]), device=device).unsqueeze(-1)
+
+		# 1. Select top-k anchor for every level and every image
+		topk_scores = []
+		topk_proposals = []
+		level_ids = []
+
+		for i in range(len(proposals)):
+			num_proposals = min(self.pre_topk, logits[i].shape[1])
+			logits_i, idx = logits[i].sort(descending=True, dim=1)
+
+			topk_scores.append(logits_i[:, :num_proposals])  # (B, topk)
+			topk_proposals.append(proposals[i][batch_idx, idx[:, :num_proposals]])  # (B, topk, 4)
+			level_ids.append(torch.full((num_proposals,), i, dtype=torch.int64, device=device))
+
+		# 2. Concat all levels together
+		scores = torch.cat(topk_scores, dim=1)  # (B, A)
+		proposals = torch.cat(topk_proposals, dim=1)  # (B, A, 4)
+		levels = torch.cat(level_ids, dim=0)  # (A,)
+
+		# 3. For each image, run a per-level NMS, and choose topk results.
+		res = []
+		for i in range(len(image_sizes)):
+			scores_i, proposals_i, levels_i = scores[i], proposals[i], levels[i]
+
+			keep = torch.isfinite(proposals_i).all(dim=1) & torch.isfinite(scores_i)
+			if not keep.all():""")
+		if not test_only:
+			res.append("""
+				if self.training:
+					raise FloatingPointError("Predicted boxes or scores contain Inf/NaN. Training has diverged.")""")
+		res.append("""
+				scores_i, proposals_i, levels_i = scores_i[keep], proposals_i[keep], levels_i[keep]
+			
+			Boxes.clamp_(proposals_i, image_sizes[i])
+
+			# filter empty boxes
+			keep = Boxes.nonempty(proposals_i, threshold=self.min_box_size)
+			if not keep.all():
+				proposals_i, scores_i, levels_i = proposals_i[keep], scores_i[keep], levels_i[keep]
+
+			keep = box_ops.batched_nms(proposals_i, scores_i, levels_i, nms_thresh)  # TODO: Is it really faster?
+			keep = keep[:post_nms_topk]  # keep is already sorted
+			res.append((scores_i[keep], proposals_i[keep]))
+
+		return res\n\n""")
+
 
 	generate_imports()
 	generate_StandardRPNHead()
+	generate_SelectRPNProposals()
 
 	return "".join(res), libs

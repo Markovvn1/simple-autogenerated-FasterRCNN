@@ -57,6 +57,7 @@ libs_maps = {
 	"layers/conv_wrapper.py": (safe_clone, "layers/conv_wrapper.py"),
 	"layers/freeze_batchnorm.py": (safe_clone, "layers/freeze_batchnorm.py"),
 	"utils/boxes.py": (safe_clone, "utils/boxes.py"),
+	"utils/anchors.py": (safe_clone, "utils/anchors.py"),
 }
 
 import_maps = {
@@ -66,7 +67,8 @@ import_maps = {
 	"parts/backbone.py": "from .backbone import Backbone",
 	"layers/conv_wrapper.py": "from conv_wrapper import Conv2d",
 	"layers/freeze_batchnorm.py": "from freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
-	"utils/boxes.py": "from . import boxes"
+	"utils/boxes.py": "import .boxes as Boxes"
+	"utils/anchors.py": "from .anchors import Anchors, MultiAnchors"
 }
 
 def create_with_dependencies(lib):
