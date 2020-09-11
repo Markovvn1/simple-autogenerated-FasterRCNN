@@ -27,8 +27,8 @@ MODEL:
         sizes: [[32], [64], [128], [256], [512]]
       bbox_reg_loss_type: "smooth_l1"
       LOSS_WEIGHT:
-        cls: 1.0
-        loc: 1.0
+        rpn_cls: 1.0
+        rpn_loc: 1.0
       TRAIN:
         post_topk: 1000
         pre_topk: 2000

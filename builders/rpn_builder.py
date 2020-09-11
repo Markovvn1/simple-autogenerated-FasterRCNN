@@ -191,7 +191,46 @@ class RPN(nn.Module):
 		# only for train
 		self.batch_size_per_image = {cfg["TRAIN"]["batch_size_per_image"]}
 		self.positive_fraction = {cfg["TRAIN"]["positive_fraction"]}
-		self.loss_weight = {cfg["LOSS_WEIGHT"]}\n\n""")
+		self.loss_weight = {cfg["LOSS_WEIGHT"]}\n""")
+
+		res.append(f"""\n
+	def forward(self, features, image_sizes{"" if test_only else ", gt_instances=None"}):
+		\"\"\"
+		Args:
+			features (list[Tensor]): input features
+			image_sizes (list[int, int]): sizes of original inputs""")
+
+		if not test_only:
+			res.append("""
+			gt_instances (list[Instances], optional): a length `N` list of `Instances`s.
+				Each `Instances` stores ground-truth instances for the corresponding image.""")
+
+		res.append("""\n
+		Returns:
+			proposals: list[Tensor]: list of proposal boxes of shape [Ai, 4]""")
+
+		if not test_only:
+			res.append("""
+			loss: dict[Tensor] or None""")
+		res.append("""
+		\"\"\"""")
+
+		res.append("""
+		pred_objectness_logits, pred_anchor_deltas = self.rpn_head(features)
+		anchors = self.anchor_generator([f.shape[-2:] for f in features])
+		del features\n""")
+
+		if not test_only:
+			res.append("""
+		if self.training:
+			assert gt_instances is not None
+			losses = self.losses(anchors, gt_instances, pred_objectness_logits, pred_anchor_deltas)
+		else:
+			losses = {}\n""")
+
+		res.append(f"""
+		proposals = self.predict_proposals(anchors, pred_objectness_logits, pred_anchor_deltas, image_sizes)
+		return proposals{"" if test_only else ", losses"}""")
 
 	generate_imports()
 	generate_StandardRPNHead()
