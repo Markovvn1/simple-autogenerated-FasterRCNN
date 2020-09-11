@@ -58,6 +58,7 @@ libs_maps = {
 	"layers/freeze_batchnorm.py": (safe_clone, "layers/freeze_batchnorm.py"),
 	"utils/boxes.py": (safe_clone, "utils/boxes.py"),
 	"utils/anchors.py": (safe_clone, "utils/anchors.py"),
+	"utils/matcher.py": (safe_clone, "utils/matcher.py"),
 }
 
 import_maps = {
@@ -69,6 +70,7 @@ import_maps = {
 	"layers/freeze_batchnorm.py": "from freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
 	"utils/boxes.py": "import .boxes as Boxes"
 	"utils/anchors.py": "from .anchors import Anchors, MultiAnchors"
+	"utils/matcher.py": "from .matcher import Matcher"
 }
 
 def create_with_dependencies(lib):
