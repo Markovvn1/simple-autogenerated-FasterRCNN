@@ -20,20 +20,19 @@ MODEL:
     name: "RPN"  # Тип используемого PROPOSAL_GENERATOR. {"RPN"}
     RPN:
       head_name: "StandardRPNHead"
+      iou_thresholds: [0.3, 0.7]
+      min_size: 0
       ANCHOR_GENERATOR:
-        aspect_ratios: [0.5, 1.0, 2.0]
-        sizes: [32, 64, 128, 256, 512]
-      IOU:
-        labels: [0, -1, 1]
-        thresholds: [0.3, 0.7]
-      LOSS:
-        type: "smooth_l1"
-        cls_weight: 1.0
-        loc_weight: 1.0
+        ratios: [0.5, 1.0, 2.0]
+        sizes: [[32], [64], [128], [256], [512]]
+      bbox_reg_loss_type: "smooth_l1"
+      LOSS_WEIGHT:
+        cls: 1.0
+        loc: 1.0
       TRAIN:
-        batch_size_per_image: 256
         post_topk: 1000
         pre_topk: 2000
+        batch_size_per_image: 256
         positive_fraction: 0.5
       TEST:
         post_topk: 1000

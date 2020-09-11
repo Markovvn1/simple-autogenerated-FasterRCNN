@@ -68,9 +68,9 @@ import_maps = {
 	"parts/backbone.py": "from .backbone import Backbone",
 	"layers/conv_wrapper.py": "from conv_wrapper import Conv2d",
 	"layers/freeze_batchnorm.py": "from freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
-	"utils/boxes.py": "import .boxes as Boxes"
-	"utils/anchors.py": "from .anchors import Anchors, MultiAnchors"
-	"utils/matcher.py": "from .matcher import Matcher"
+	"utils/boxes.py": "import .boxes as Boxes",
+	"utils/anchors.py": "from .anchors import Anchors, MultiAnchors",
+	"utils/matcher.py": "from .matcher import Matcher",
 }
 
 def create_with_dependencies(lib):

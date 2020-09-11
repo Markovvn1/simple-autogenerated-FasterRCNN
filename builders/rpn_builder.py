@@ -63,9 +63,10 @@ def generate_rpn_pytorch(cfg, test_only):
 		res.append("import torch.nn.functional as F\n")
 		res.append("import torchvision.ops.boxes as box_ops\n\n")
 
-		res.append("from ..utils import Boxes, MultiAnchors\n\n")
+		res.append(f"from ..utils import Boxes, MultiAnchors{'' if test_only else ', Matcher'}\n\n")
 		libs.add("utils/boxes.py")
 		libs.add("utils/anchors.py")
+		if not test_only: libs.add("utils/matcher.py")
 
 	def generate_StandardRPNHead():
 		res.append("""
@@ -167,8 +168,34 @@ class SelectRPNProposals(nn.Module):
 		return res\n\n""")
 
 
+	def generate_RPN():
+		res.append(f"""
+class RPN(nn.Module):
+
+	def __init__(self, in_channels, strides):
+		super().__init__()
+
+		self.anchor_generator = MultiAnchors({cfg["ANCHOR_GENERATOR"]["sizes"]}, {cfg["ANCHOR_GENERATOR"]["ratios"]}, strides)
+		self.rpn_head = StandardRPNHead(in_channels, len(self.anchor_generator), box_dim=4)
+		self.anchor_matcher = Matcher(bg_threshold={cfg["iou_thresholds"][0]}, fg_threshold={cfg["iou_thresholds"][1]}, allow_low_quality_matches=True)""")
+		if test_only:
+			res.append(f"""
+		self.selector = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_size={cfg["min_size"]})""")
+		else:
+			res.append(f"""
+		self.selector_test = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_size={cfg["min_size"]})
+		self.selector_train = SelectRPNProposals({cfg["TRAIN"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TRAIN"]["post_topk"]}, min_size={cfg["min_size"]})\n""")
+
+		if not test_only:
+			res.append(f"""
+		# only for train
+		self.batch_size_per_image = {cfg["TRAIN"]["batch_size_per_image"]}
+		self.positive_fraction = {cfg["TRAIN"]["positive_fraction"]}
+		self.loss_weight = {cfg["LOSS_WEIGHT"]}\n\n""")
+
 	generate_imports()
 	generate_StandardRPNHead()
 	generate_SelectRPNProposals()
+	generate_RPN()
 
 	return "".join(res), libs

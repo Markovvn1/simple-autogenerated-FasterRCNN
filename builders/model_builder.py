@@ -67,7 +67,11 @@ class Model(nn.Module):
 		bottom_up = ResNet(in_channels=in_channels, out_features={cfg["BACKBONE"]["RESNETS"]["out_features"]})
 		self.backbone = FPN(bottom_up, out_channels={cfg["BACKBONE"]["FPN"]["out_channels"]})
 
-	def forward(self, x):
+	def forward(self, x):""")
+		if test_only:
+			res.append("""
+		assert not self.training, "This model is only for evaluation!"\n""")
+		res.append("""
 		return self.backbone(x)\n""")
 
 		if not test_only:
