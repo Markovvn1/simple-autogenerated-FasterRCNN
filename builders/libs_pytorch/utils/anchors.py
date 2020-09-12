@@ -31,7 +31,7 @@ class AnchorsGrid:
 			target_boxes (Tensor[float]): коробки в формате xyxy, (A, 4)
 		"""
 		assert target_boxes.device == self.xywh.device
-		assert target_boxes.dim() == 2 and len(target_boxes) == len(self.xywh)
+		assert target_boxes.dim() == 2 and target_boxes.shape == self.xywh.shape
 
 		target_wh = target_boxes[:, 2:] - target_boxes[:, :2]
 		target_cxcy = target_boxes[:, :2] + target_wh / 2
@@ -44,17 +44,17 @@ class AnchorsGrid:
 	def apply_deltas(self, deltas):
 		"""
 		Args:
-			deltas (Tensor): transformation deltas of shape (N, 4)
+			deltas (Tensor): transformation deltas of shape (N, A, 4)
 		"""
 		assert deltas.device == self.xywh.device
-		assert deltas.dim() == 2 and len(deltas) == len(self.xywh)
+		assert deltas.dim() <= 3 and deltas.shape[-2:] == self.xywh.shape, (deltas.shape, self.xywh.shape)
 
-		pred_xy = deltas[:, :2] * self._wh + self._xy
-		pred_wh = torch.exp(deltas[:, 2:].clamp_max(SCALE_CLAMP)) * self._wh
+		pred_xy = deltas[..., :2] * self._wh + self._xy
+		pred_wh = torch.exp(deltas[..., 2:].clamp_max(SCALE_CLAMP)) * self._wh
 
 		res = torch.empty_like(deltas)
-		res[:, :2] = pred_xy - pred_wh / 2
-		res[:, 2:] = pred_xy + pred_wh / 2
+		res[..., :2] = pred_xy - pred_wh / 2
+		res[..., 2:] = pred_xy + pred_wh / 2
 		return res
 
 
@@ -108,7 +108,7 @@ class MultiAnchors(nn.Module):
 	def __len__(self):
 		return sum([len(a) for a in self.anchors])
 
-	def _broadcast_params(params, num_features, name):
+	def _broadcast_params(self, params, num_features, name):
 		"""
 		If one size (or aspect ratio) is specified and there are multiple feature
 		maps, we "broadcast" anchors of that single size (or aspect ratio)
@@ -134,4 +134,4 @@ class MultiAnchors(nn.Module):
 	def forward(self, features_hw):
 		assert isinstance(features_hw, (list, tuple))
 		assert len(features_hw) == len(self.anchors)
-		return [anchors(hw) for hw, anchor in zip(features_hw, self.anchors)]
+		return [anchor(hw) for hw, anchor in zip(features_hw, self.anchors)]

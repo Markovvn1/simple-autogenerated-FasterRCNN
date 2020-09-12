@@ -66,9 +66,9 @@ import_maps = {
 	"parts/fpn.py": "from .fpn import FPN",
 	"parts/rpn.py": "from .rpn import RPN",
 	"parts/backbone.py": "from .backbone import Backbone",
-	"layers/conv_wrapper.py": "from conv_wrapper import Conv2d",
-	"layers/freeze_batchnorm.py": "from freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
-	"utils/boxes.py": "import .boxes as Boxes",
+	"layers/conv_wrapper.py": "from .conv_wrapper import Conv2d",
+	"layers/freeze_batchnorm.py": "from .freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
+	"utils/boxes.py": "from . import boxes as Boxes",
 	"utils/anchors.py": "from .anchors import Anchors, MultiAnchors",
 	"utils/matcher.py": "from .matcher import Matcher",
 }

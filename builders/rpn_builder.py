@@ -180,20 +180,24 @@ class RPN(nn.Module):
 		self.anchor_matcher = Matcher(bg_threshold={cfg["iou_thresholds"][0]}, fg_threshold={cfg["iou_thresholds"][1]}, allow_low_quality_matches=True)""")
 		if test_only:
 			res.append(f"""
-		self.selector = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_size={cfg["min_size"]})""")
+		self.find_top_rpn_proposals = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})""")
 		else:
 			res.append(f"""
-		self.selector_test = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_size={cfg["min_size"]})
-		self.selector_train = SelectRPNProposals({cfg["TRAIN"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TRAIN"]["post_topk"]}, min_size={cfg["min_size"]})\n""")
+		selector_test = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
+		selector_train = SelectRPNProposals({cfg["TRAIN"]["pre_topk"]}, {cfg["nms_thress"]}, {cfg["TRAIN"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
+		self.find_top_rpn_proposals = lambda *args: (selector_train if self.training else selector_test)(*args)\n""")
 
 		if not test_only:
 			res.append(f"""
 		# only for train
 		self.batch_size_per_image = {cfg["TRAIN"]["batch_size_per_image"]}
 		self.positive_fraction = {cfg["TRAIN"]["positive_fraction"]}
-		self.loss_weight = {cfg["LOSS_WEIGHT"]}\n""")
+		self.loss_weight = {cfg["LOSS_WEIGHT"]}""")
 
 		res.append(f"""\n
+	def losses(self, *args):
+		return {{}}
+
 	def forward(self, features, image_sizes{"" if test_only else ", gt_instances=None"}):
 		\"\"\"
 		Args:
@@ -229,7 +233,9 @@ class RPN(nn.Module):
 			losses = {}\n""")
 
 		res.append(f"""
-		proposals = self.predict_proposals(anchors, pred_objectness_logits, pred_anchor_deltas, image_sizes)
+		# decode proposals and choose the best ones
+		pred_proposals = [anchors[i].apply_deltas(pred_anchor_deltas[i]) for i in range(len(anchors))]
+		proposals = self.find_top_rpn_proposals(pred_proposals, pred_objectness_logits, image_sizes)
 		return proposals{"" if test_only else ", losses"}""")
 
 	generate_imports()

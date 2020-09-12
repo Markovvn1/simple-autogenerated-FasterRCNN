@@ -57,7 +57,7 @@ def generate_fpn_pytorch(cfg, test_only=False):
 		res.append("import torch.nn as nn\n")
 		res.append("import torch.nn.functional as F\n")
 		res.append("\n")
-		res.append("from . import Backbone\n")
+		res.append("from .backbone import Backbone\n")
 		libs.add("parts/backbone.py")
 
 		if not test_only:

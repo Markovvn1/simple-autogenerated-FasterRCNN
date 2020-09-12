@@ -66,13 +66,17 @@ class Model(nn.Module):
 		super().__init__()
 		bottom_up = ResNet(in_channels=in_channels, out_features={cfg["BACKBONE"]["RESNETS"]["out_features"]})
 		self.backbone = FPN(bottom_up, out_channels={cfg["BACKBONE"]["FPN"]["out_channels"]})
+		self.rpn = RPN(self.backbone.out_channels[0], self.backbone.out_strides)
 
-	def forward(self, x):""")
+	def forward(self, x, image_sizes{"" if test_only else ", gt_instances=None"}):""")
 		if test_only:
 			res.append("""
 		assert not self.training, "This model is only for evaluation!"\n""")
-		res.append("""
-		return self.backbone(x)\n""")
+
+		res.append(f"""
+		features = self.backbone(x)
+		proposals{"" if test_only else ", rpn_losses"} = self.rpn(features, image_sizes{"" if test_only else ", gt_instances"})
+		return proposals{"" if test_only else ", {*rpn_losses}"}\n""")
 
 		if not test_only:
 			res.append("""
