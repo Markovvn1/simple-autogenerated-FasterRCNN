@@ -1,5 +1,7 @@
 import torch
 
+from .pairwise_iou import pairwise_iou
+
 class Matcher:
 
 	def __init__(self, bg_threshold, fg_threshold, allow_low_quality_matches=False):
@@ -17,32 +19,22 @@ class Matcher:
 		self.fg_threshold = fg_threshold
 		self.allow_low_quality_matches = allow_low_quality_matches
 
-	def __call__(self, x):
-		"""
-		Args:
-			x (Tensor[float]): an MxN tensor, containing the pairwise quality
-				between M ground-truth elements and N predicted elements. All
-				elements must be >= 0
-		"""
-
-		assert x.dim() == 2
-
-		if x.numel() == 0:
+	def _forward(self, target, anchors):
+		if target.numel() == 0 or anchors.numel() == 0:
 			# When no gt boxes exist, all predicted boxes are background(0)
 			return x.new_full((x.size(1),), 0, dtype=torch.int64), \
 				x.new_full((x.size(1),), 0, dtype=torch.int8)
 
-		assert (match_quality_matrix >= 0).all()
+		x = pairwise_iou(target, anchors)
 
-		matched_vals, matches = match_quality_matrix.max(dim=0)
-
+		matched_vals, matches = x.max(dim=0)
 		match_labels = matches.new_full(matches.size(), -1, dtype=torch.int8)
 
 		match_labels[matched_vals < self.bg_threshold] = 0
 		match_labels[matched_vals >= self.fg_threshold] = 1
 
 		if self.allow_low_quality_matches:
-			highest_quality_foreach_gt = match_quality_matrix.max(dim=1).values
+			highest_quality_foreach_gt = x.max(dim=1).values
 			pred_inds_with_highest_quality = (x == highest_quality_foreach_gt[:, None]).nonzero()[:, 1]
 
 			# If an anchor was labeled positive only due to a low-quality match
@@ -52,3 +44,23 @@ class Matcher:
 			match_labels[pred_inds_with_highest_quality] = 1
 
 		return matches, match_labels
+
+	def __call__(self, target, anchors):
+		"""
+		Args:
+			target (Tensor): Тензор, элементы которого будут сопоставляться anchors, (A, 4)
+			anchors (Tensor): Тензор, которому будут сопоставляться элементы из target, (B, 4)
+
+		Results:
+			matched_idxs (Tensor[int64]): Индекс сопоставленного target для каждого anchor, (B,)
+			gt_labels_i (Tensor[int8]): Массив состоящий из (0, -1, 1) и задающий какие элементы
+				foreground, какие background, а какие игнорировать
+		"""
+		# Matching is memory-expensive. But the result is small
+		try:
+			return self._forward(target, anchors)
+		except RuntimeError as e:
+			if "CUDA out of memory. " not in str(e): raise
+			print("Note: runing pairwise_iou on CPU.")
+			matched_idxs, gt_labels_i = self.anchor_matcher(target.cpu(), anchors.cpu())
+			return matched_idxs.to(device=target.device), gt_labels_i.to(device=target.device)

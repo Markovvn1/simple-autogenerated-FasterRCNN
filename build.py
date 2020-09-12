@@ -44,9 +44,10 @@ shutil.rmtree('build', ignore_errors=True)  # clean build directory
 os.makedirs("build")
 os.chdir("build")
 
-def safe_clone(name, test_only=None):
+def safe_clone(name, dependencies=None, test_only=None):
 	os.makedirs(os.path.dirname(name), exist_ok=True)
 	shutil.copyfile("../builders/libs_pytorch/"+name, name)
+	return dependencies
 
 libs_maps = {
 	"model.py": (build_model, cfg["MODEL"]),
@@ -58,7 +59,9 @@ libs_maps = {
 	"layers/freeze_batchnorm.py": (safe_clone, "layers/freeze_batchnorm.py"),
 	"utils/boxes.py": (safe_clone, "utils/boxes.py"),
 	"utils/anchors.py": (safe_clone, "utils/anchors.py"),
-	"utils/matcher.py": (safe_clone, "utils/matcher.py"),
+	"utils/matcher.py": (safe_clone, "utils/matcher.py", ["utils/pairwise_iou.py"]),
+	"utils/pairwise_iou.py": (safe_clone, "utils/pairwise_iou.py"),
+	"utils/subsampler.py": (safe_clone, "utils/subsampler.py")
 }
 
 import_maps = {
@@ -71,13 +74,15 @@ import_maps = {
 	"utils/boxes.py": "from . import boxes as Boxes",
 	"utils/anchors.py": "from .anchors import Anchors, MultiAnchors",
 	"utils/matcher.py": "from .matcher import Matcher",
+	"utils/pairwise_iou.py": "from .pairwise_iou import pairwise_iou",
+	"utils/subsampler.py": "from .subsampler import Subsampler",
 }
 
 def create_with_dependencies(lib):
 	if libs_maps[lib] is None: return
 	func = libs_maps[lib]; libs_maps[lib] = None
 	print(f"Generate {lib}")
-	res = func[0](func[1], test_only=TEST_ONLY)
+	res = func[0](*func[1:], test_only=TEST_ONLY)
 	if res is None: return
 	for item in res:
 		create_with_dependencies(item)

@@ -20,22 +20,23 @@ MODEL:
     name: "RPN"  # Тип используемого PROPOSAL_GENERATOR. {"RPN"}
     RPN:
       head_name: "StandardRPNHead"
-      iou_thresholds: [0.3, 0.7]
+      iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
       min_box_size: 0
-      ANCHOR_GENERATOR:
+      bbox_reg_loss_type: "smooth_l1"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
+      smooth_l1_beta: 0.0
+      ANCHOR_GENERATOR:  # Параметры генератора anchors
         ratios: [0.5, 1.0, 2.0]
         sizes: [[32], [64], [128], [256], [512]]
-      bbox_reg_loss_type: "smooth_l1"
-      LOSS_WEIGHT:
+      LOSS_WEIGHT:  # Вес ошибок
         rpn_cls: 1.0
         rpn_loc: 1.0
-      TRAIN:
-        post_topk: 1000
+      TRAIN:  # Парамеры для обучения
         pre_topk: 2000
-        batch_size_per_image: 256
-        positive_fraction: 0.5
-      TEST:
+        nms_thress: 0.7
         post_topk: 1000
+        batch_size_per_image: 512
+        positive_fraction: 0.5
+      TEST:  # Параметры для тестирования
         pre_topk: 1000
-      nms_thress: 0.7
-      smooth_l1_beta: 0.0
+        nms_thress: 0.7
+        post_topk: 1000
