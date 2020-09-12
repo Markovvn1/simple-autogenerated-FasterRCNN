@@ -136,14 +136,14 @@ class SelectRPNProposals(nn.Module):
 			level_ids.append(torch.full((num_proposals,), i, dtype=torch.int64, device=device))
 
 		# 2. Concat all levels together
-		scores = torch.cat(topk_scores, dim=1)  # (B, A)
-		proposals = torch.cat(topk_proposals, dim=1)  # (B, A, 4)
-		levels = torch.cat(level_ids, dim=0)  # (A,)
+		topk_scores = torch.cat(topk_scores, dim=1)  # (B, A)
+		topk_proposals = torch.cat(topk_proposals, dim=1)  # (B, A, 4)
+		level_ids = torch.cat(level_ids, dim=0)  # (A,)
 
 		# 3. For each image, run a per-level NMS, and choose topk results.
 		res = []
 		for i in range(len(image_sizes)):
-			scores_i, proposals_i, levels_i = scores[i], proposals[i], levels[i]
+			scores_i, proposals_i, levels_i = topk_scores[i], topk_proposals[i], level_ids
 
 			keep = torch.isfinite(proposals_i).all(dim=1) & torch.isfinite(scores_i)
 			if not keep.all():""")
@@ -161,8 +161,8 @@ class SelectRPNProposals(nn.Module):
 			if not keep.all():
 				proposals_i, scores_i, levels_i = proposals_i[keep], scores_i[keep], levels_i[keep]
 
-			keep = box_ops.batched_nms(proposals_i, scores_i, levels_i, nms_thresh)  # TODO: Is it really faster?
-			keep = keep[:post_nms_topk]  # keep is already sorted
+			keep = box_ops.batched_nms(proposals_i, scores_i, levels_i, self.nms_thresh)  # TODO: Is it really faster?
+			keep = keep[:self.post_topk]  # keep is already sorted
 			res.append((scores_i[keep], proposals_i[keep]))
 
 		return res\n\n""")
@@ -176,7 +176,8 @@ class RPN(nn.Module):
 		super().__init__()
 
 		self.anchor_generator = MultiAnchors({cfg["ANCHOR_GENERATOR"]["sizes"]}, {cfg["ANCHOR_GENERATOR"]["ratios"]}, strides)
-		self.rpn_head = StandardRPNHead(in_channels, len(self.anchor_generator), box_dim=4)
+		assert len(set(self.anchor_generator.num_anchors)) == 1
+		self.rpn_head = StandardRPNHead(in_channels, self.anchor_generator.num_anchors[0], box_dim=4)
 		self.anchor_matcher = Matcher(bg_threshold={cfg["iou_thresholds"][0]}, fg_threshold={cfg["iou_thresholds"][1]}, allow_low_quality_matches=True)""")
 		if test_only:
 			res.append(f"""

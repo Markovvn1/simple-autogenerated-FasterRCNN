@@ -76,7 +76,7 @@ class Anchors(nn.Module):
 		return x.repeat(len(y)), y.view(-1, 1).repeat(1, len(x)).view(-1)
 
 	def __len__(self):
-		return self._cell_anchors.size(1)
+		return len(self._cell_anchors)
 
 	def forward(self, feature_hw):
 		assert len(feature_hw) == 2
@@ -105,8 +105,10 @@ class MultiAnchors(nn.Module):
 			self.anchors.append(Anchors(si, r, st))
 			self.add_module(f"anchors{st}", self.anchors[-1])
 
-	def __len__(self):
-		return sum([len(a) for a in self.anchors])
+	@property
+	def num_anchors(self):
+		"""Количество anchors в каждой ячейке для каждого feature map."""
+		return [len(a) for a in self.anchors]
 
 	def _broadcast_params(self, params, num_features, name):
 		"""
