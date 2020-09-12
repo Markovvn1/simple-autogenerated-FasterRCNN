@@ -235,7 +235,7 @@ class RPN(nn.Module):
 
 		res.append(f"""
 		# decode proposals and choose the best ones
-		pred_proposals = [anchors[i].apply_deltas(pred_anchor_deltas[i]) for i in range(len(anchors))]
+		pred_proposals = [a.apply_deltas(d) for a, d in zip(anchors, pred_anchor_deltas)]
 		proposals = self.find_top_rpn_proposals(pred_proposals, pred_objectness_logits, image_sizes)
 		return proposals{"" if test_only else ", losses"}""")
 
