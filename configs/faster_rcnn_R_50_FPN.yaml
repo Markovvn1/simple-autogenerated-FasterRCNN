@@ -23,7 +23,7 @@ MODEL:
       iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
       min_box_size: 0
       bbox_reg_loss_type: "smooth_l1"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
-      smooth_l1_beta: 0.0
+      smooth_l1_beta: 1.0
       ANCHOR_GENERATOR:  # Параметры генератора anchors
         ratios: [0.5, 1.0, 2.0]
         sizes: [[32], [64], [128], [256], [512]]

@@ -25,3 +25,10 @@ def nonempty(boxes, threshold: float=0.0):
 	widths_keep = (boxes[:, 2] - boxes[:, 0]) > threshold
 	heights_keep = (boxes[:, 3] - boxes[:, 1]) > threshold
 	return widths_keep & heights_keep
+
+def xywh2xyxy(boxes):
+	res = torch.empty_like(boxes)
+	wh_half = boxes[..., 2:] / 2
+	res[..., :2] = boxes[..., :2] - wh_half
+	res[..., 2:] = boxes[..., :2] + wh_half
+	return res

@@ -91,9 +91,10 @@ def generate_rpn_pytorch(cfg, test_only):
 		res.append("import torch\n")
 		res.append("import torch.nn as nn\n")
 		res.append("import torch.nn.functional as F\n")
-		res.append("import torchvision.ops.boxes as box_ops\n\n")
+		res.append("import torchvision.ops.boxes as box_ops\n")
+		res.append(f"from fvcore.nn import {'smooth_l1_loss' if cfg['bbox_reg_loss_type'] == 'smooth_l1' else 'giou_loss'}\n\n")
 
-		res.append(f"from ..utils import Boxes, MultiAnchors{'' if test_only else ', Matcher, Subsampler'}\n\n")
+		res.append(f"from ..utils import Boxes, Anchors, MultiAnchors{'' if test_only else ', Matcher, Subsampler'}\n\n")
 		libs.add("utils/boxes.py")
 		libs.add("utils/anchors.py")
 		if not test_only:
@@ -140,7 +141,7 @@ class StandardRPNHead(nn.Module):
 
 	def generate_SelectRPNProposals():
 		res.append("""
-class SelectRPNProposals(nn.Module):
+class SelectRPNProposals:
 
 	def __init__(self, pre_topk, nms_thresh, post_topk, min_box_size):
 		super().__init__()
@@ -150,7 +151,7 @@ class SelectRPNProposals(nn.Module):
 		self.min_box_size = min_box_size\n""")
 
 		res.append("""
-	def forward(self, proposals, logits, image_sizes):
+	def __call__(self, proposals, logits, image_sizes):
 		device = proposals[0].device
 		batch_idx = torch.arange(len(proposals[0]), device=device).unsqueeze(-1)
 
@@ -227,24 +228,69 @@ class RPN(nn.Module):
 		self.loss_weight = {cfg["LOSS_WEIGHT"]}\n""")
 
 		if not test_only:
+			pred_data = "pred_anchor_deltas" if cfg["bbox_reg_loss_type"] == "smooth_l1" else "pred_proposals"
+
 			res.append(f"""
 	@torch.no_grad()
 	def label_and_sample_anchors(self, anchors, gt_instances):
-		anchors = torch.cat([a.get_xyxy() for a in anchors])
+		\"\"\"
+		Каждому anchor подобрать наиболее подходящий ground truth box.
+
+		Returns:
+			(tensor): Массив, показывающий является ли данных anchor foreground(1)
+				или background(0). (A,)
+			(tensor): Массив с ground truth коробками для каждого anchor. (A, 4)
+		\"\"\"
 
 		gt_labels = []
 		gt_boxes = []  # matched ground truth boxes
+
 		for item in [x["boxes"] for x in gt_instances]:
-			matched_idxs, gt_labels_i = self.anchor_matcher(item, anchors)
+			matched_idxs, gt_labels_i = self.anchor_matcher(item, Boxes.xywh2xyxy(anchors))
 			gt_labels.append(self.subsampler.return_as_mask(gt_labels_i))  # (N, A*H*W)
 			gt_boxes.append(item[matched_idxs] if len(item) != 0 else torch.zeros_like(anchors))
 
-		return gt_labels, gt_boxes
+		return torch.stack(gt_labels), torch.stack(gt_boxes)
 
-	def losses(self, anchors, gt_instances, pred_objectness_logits, pred_anchor_deltas):
+	def losses(self, anchors, gt_instances, pred_objectness_logits, {pred_data}):
+		assert gt_instances is not None
+
+		anchors = torch.cat(anchors)
 		gt_labels, gt_boxes = self.label_and_sample_anchors(anchors, gt_instances)
-		losses = self.losses(anchors, pred_objectness_logits, gt_labels, pred_anchor_deltas, gt_boxes)
-		return {{k: v * self.loss_weight.get(k, 1.0) for k, v in losses.items()}}\n""")
+
+		pos_mask = gt_labels == 1
+		num_pos_anchors = pos_mask.sum().item()
+		num_neg_anchors = (gt_labels == 0).sum().item()
+
+		{pred_data} = torch.cat({pred_data}, dim=1)
+		pred_objectness_logits = torch.cat(pred_objectness_logits, dim=1)
+
+		losses = {{}}\n""")
+
+			if cfg["bbox_reg_loss_type"] == "smooth_l1":
+				res.append(f"""
+		gt_anchor_deltas = Anchors.get_deltas(anchors, gt_boxes) # (N, sum(Hi*Wi*Ai), 4 or 5)
+		losses["rpn_loc"] = smooth_l1_loss(
+			{pred_data}[pos_mask], gt_anchor_deltas[pos_mask],
+			beta={cfg["smooth_l1_beta"]}, reduction="sum",
+		)\n""")
+			elif cfg["bbox_reg_loss_type"] == "giou":
+				res.append(f"""
+		losses["rpn_loc"] = giou_loss(
+			{pred_data}[pos_mask], gt_boxes[pos_mask],
+			reduction="sum",
+		)\n""")
+
+			res.append("""
+		valid_mask = gt_labels >= 0
+		losses["rpn_cls"] = F.binary_cross_entropy_with_logits(
+			pred_objectness_logits[valid_mask],
+			gt_labels[valid_mask].float(),
+			reduction="sum",
+		)
+
+		normalizer = self.batch_size_per_image * len(gt_labels)
+		return {k: v * self.loss_weight[k] / normalizer for k, v in losses.items()}\n""")
 
 		res.append(f"""
 	def forward(self, features, image_sizes{"" if test_only else ", gt_instances=None"}):
@@ -271,19 +317,22 @@ class RPN(nn.Module):
 		res.append("""
 		pred_objectness_logits, pred_anchor_deltas = self.rpn_head(features)
 		anchors = self.anchor_generator([f.shape[-2:] for f in features])
-		del features\n""")
+		del features
+
+		# decode proposals
+		proposals = [Anchors.apply_deltas(a, d) for a, d in zip(anchors, pred_anchor_deltas)]
+		""")
 
 		if not test_only:
-			res.append("""
+			res.append(f"""
 		if gt_instances is not None:
-			losses = self.losses(anchors, gt_instances, pred_objectness_logits, pred_anchor_deltas)
+			losses = self.losses(anchors, gt_instances, pred_objectness_logits, {"pred_anchor_deltas" if cfg["bbox_reg_loss_type"] == "smooth_l1" else "proposals"})
 		else:
-			losses = {}\n""")
+			losses = {{}}\n""")
 
 		res.append(f"""
-		# decode proposals and choose the best ones
-		pred_proposals = [a.apply_deltas(d) for a, d in zip(anchors, pred_anchor_deltas)]
-		proposals = self.find_top_rpn_proposals(pred_proposals, pred_objectness_logits, image_sizes)
+		# choose the best proposals
+		proposals = self.find_top_rpn_proposals(proposals, pred_objectness_logits, image_sizes)
 		return proposals{"" if test_only else ", losses"}""")
 
 	generate_imports()
