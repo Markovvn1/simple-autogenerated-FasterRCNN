@@ -72,8 +72,8 @@ class Anchors(nn.Module):
 		assert anchors.size(-1) == 4
 		assert deltas.device == anchors.device
 
-		if target_boxes.shape != anchors.shape:
-			anchors = anchors.expand(target_boxes.shape)
+		if deltas.shape != anchors.shape:
+			anchors = anchors.expand(deltas.shape)
 
 		pred_xy = deltas[..., :2] * anchors[..., 2:] + anchors[..., :2]
 		pred_wh = torch.exp(deltas[..., 2:].clamp_max(SCALE_CLAMP)) * anchors[..., 2:]

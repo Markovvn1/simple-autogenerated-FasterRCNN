@@ -1,6 +1,6 @@
 class Subsampler:
 	
-	def __init__(num_samples, positive_fraction):
+	def __init__(self, num_samples, positive_fraction):
 		"""
 		Args:
 			num_samples (int): The total number of labels with value >= 0 to return.
