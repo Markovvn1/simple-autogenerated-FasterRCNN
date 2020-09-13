@@ -1,5 +1,5 @@
 import torch
-from build.resnet import ResNet
+from build.parts import ResNet
 
 net = ResNet(in_channels=3, out_features=["res2", "res3", "res4", "res5"])
 net.load_state_dict(torch.load("weight.pt"))

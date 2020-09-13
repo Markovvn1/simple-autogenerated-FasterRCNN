@@ -34,7 +34,7 @@ class Subsampler:
 			pos_idx, neg_idx (Tensor):
 				1D vector of indices. The total length of both is `num_samples` or fewer.
 		"""
-		positive = ((labels != -1) & ~(labels != 0)).nonzero().view(-1)
+		positive = (labels > 0).nonzero().view(-1)
 		negative = (labels == 0).nonzero().view(-1)
 
 		num_pos = int(self.num_samples * self.positive_fraction)

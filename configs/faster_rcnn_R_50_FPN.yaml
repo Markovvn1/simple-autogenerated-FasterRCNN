@@ -4,7 +4,7 @@ MODEL:
     RESNETS:
       # Параметры для генерации ResNet
       depth: 50  # Глубина сети. {18, 34, 50, 101, 152}
-      norm: "BN"  # Тип слоя нормализации. {"None", "BN", "FrozenBN"}
+      norm: "FrozenBN"  # Тип слоя нормализации. {"None", "BN", "FrozenBN"}  TODO: change to BN
       num_groups: 1  # Количество групп для сверточных 3x3 слоев
       width_per_group: 64  # Количество каналов в каждой группе
       stem_out_channels: 64  # Количество каналов на выходе первого слоя
@@ -22,7 +22,7 @@ MODEL:
       head_name: "StandardRPNHead"
       iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
       min_box_size: 0
-      bbox_reg_loss_type: "smooth_l1"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
+      bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
       smooth_l1_beta: 1.0
       ANCHOR_GENERATOR:  # Параметры генератора anchors
         ratios: [0.5, 1.0, 2.0]
@@ -34,7 +34,7 @@ MODEL:
         pre_topk: 2000
         nms_thress: 0.7
         post_topk: 1000
-        batch_size_per_image: 512
+        batch_size_per_image: 256
         positive_fraction: 0.5
       TEST:  # Параметры для тестирования
         pre_topk: 1000

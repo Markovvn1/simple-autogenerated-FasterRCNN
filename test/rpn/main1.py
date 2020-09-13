@@ -19,6 +19,7 @@ class Model(nn.Module):
 
 	def forward(self, x, targets):
 		features = self.backbone(x)
+		torch.save(features, "res1_t1.pt")
 		return self.rpn(ImageListPlug([x.shape[-2:]]), features, targets)
 
 class ImageListPlug:
@@ -33,6 +34,7 @@ cfg.MODEL.ROI_HEADS.NUM_CLASSES = 2
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.85
 cfg.MODEL.ANCHOR_GENERATOR.OFFSET = 0.5
 cfg.MODEL.RPN.SMOOTH_L1_BETA = 1.0
+cfg.MODEL.RPN.BBOX_REG_LOSS_TYPE = "giou"
 
 net = Model(cfg)
 
@@ -45,6 +47,9 @@ targets = [Instances((512, 512))]
 targets[0].gt_boxes = Boxes(torch.load("targets.pt"))
 
 storage_4del = EventStorage(0).__enter__()
+
+torch.random.manual_seed(0)
+torch.cuda.manual_seed(0)
 
 with torch.no_grad():
 	torch.save(net(torch.load("data.pt"), targets), "res1.pt")

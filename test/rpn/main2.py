@@ -11,6 +11,9 @@ net.load_state_dict({k: temp.get(k, v) for k, v in net.state_dict().items()})
 data = torch.load("data.pt")
 targets = [{"boxes": torch.load("targets.pt")}]
 
+torch.random.manual_seed(0)
+torch.cuda.manual_seed(0)
+
 with torch.no_grad():
 	torch.save(net(data, [data.shape[-2:]], targets), "res2_1.pt")
 	net.extract()

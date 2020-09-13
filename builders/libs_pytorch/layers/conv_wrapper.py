@@ -32,18 +32,15 @@ class Conv2d(nn.Conv2d):
 
 		if self.norm_cls is None: return res
 
-		if isinstance(self.norm, nn.BatchNorm2d):
-			res_scale = self.norm.weight * (self.norm.running_var + self.norm.eps).rsqrt()
-			res_bias = self.norm.bias - self.norm.running_mean * res_scale
+		res_scale = self.norm.weight * (self.norm.running_var + self.norm.eps).rsqrt()
+		res_bias = self.norm.bias - self.norm.running_mean * res_scale
 
-			res.weight.data *= res_scale.reshape(-1, 1, 1, 1)
-			if res.bias is not None:
-				res.bias.data *= res_scale
-				res.bias.data += res_bias
-			else:
-				res.bias = torch.nn.Parameter(res_bias, requires_grad=False)
+		res.weight.data *= res_scale.reshape(-1, 1, 1, 1)
+		if res.bias is not None:
+			res.bias.data *= res_scale
+			res.bias.data += res_bias
 		else:
-			raise NotImplementedError()
+			res.bias = torch.nn.Parameter(res_bias, requires_grad=False)
 
 		return res
 
