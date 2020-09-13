@@ -76,7 +76,7 @@ class Model(nn.Module):
 		res.append(f"""
 		features = self.backbone(x)
 		proposals{"" if test_only else ", rpn_losses"} = self.rpn(features, image_sizes{"" if test_only else ", gt_instances"})
-		return proposals{"" if test_only else ", {*rpn_losses}"}\n""")
+		return proposals{"" if test_only else ", {**rpn_losses}"}\n""")
 
 		if not test_only:
 			res.append("""

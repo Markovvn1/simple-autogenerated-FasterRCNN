@@ -58,8 +58,8 @@ class Anchors(nn.Module):
 		target_cxcy = target_boxes[..., :2] + target_wh / 2
 
 		res = torch.empty_like(target_boxes)
-		res[:, :2] = (target_cxcy - anchors[..., :2]) / anchors[..., 2:]
-		res[:, 2:] = (target_wh / anchors[..., 2:]).log()
+		res[..., :2] = (target_cxcy - anchors[..., :2]) / anchors[..., 2:]
+		res[..., 2:] = (target_wh / anchors[..., 2:]).log()
 		return res
 
 	@staticmethod

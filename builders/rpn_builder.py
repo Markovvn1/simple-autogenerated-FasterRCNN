@@ -289,7 +289,7 @@ class RPN(nn.Module):
 			reduction="sum",
 		)
 
-		normalizer = self.batch_size_per_image * len(gt_labels)
+		normalizer = self.subsampler.num_samples * len(gt_labels)
 		return {k: v * self.loss_weight[k] / normalizer for k, v in losses.items()}\n""")
 
 		res.append(f"""

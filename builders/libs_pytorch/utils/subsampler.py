@@ -1,3 +1,5 @@
+import torch
+
 class Subsampler:
 	
 	def __init__(self, num_samples, positive_fraction):
@@ -35,10 +37,10 @@ class Subsampler:
 		positive = ((labels != -1) & ~(labels != 0)).nonzero().view(-1)
 		negative = (labels == 0).nonzero().view(-1)
 
-		num_pos = int(num_samples * positive_fraction)
+		num_pos = int(self.num_samples * self.positive_fraction)
 		# protect against not enough positive examples
 		num_pos = min(len(positive), num_pos)
-		num_neg = num_samples - num_pos
+		num_neg = self.num_samples - num_pos
 		# protect against not enough negative examples
 		num_neg = min(len(negative), num_neg)
 
@@ -48,7 +50,7 @@ class Subsampler:
 
 		return positive[pos_perm], negative[neg_perm]
 
-	def return_as_mask(labels):
+	def return_as_mask(self, labels):
 		pos_idx, neg_idx = self(labels)
 		labels.fill_(-1)
 		labels.scatter_(0, pos_idx, 1)
