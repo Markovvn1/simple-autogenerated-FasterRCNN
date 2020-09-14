@@ -40,6 +40,7 @@ from .parts import ResNet, FPN, RPN\n""")
 		libs.add("parts/resnet.py")
 		libs.add("parts/fpn.py")
 		libs.add("parts/rpn.py")
+		libs.add("parts/fast_rcnn.py")
 
 		if not test_only:
 			res.append(f"from .layers import Conv2d\n")

@@ -1,9 +1,5 @@
 import os
 
-# Важно!
-# 1. Перед вызовом SelectRPNProposals: boxes.clip(image_size)
-# 2. Проверки (assert), которые были в оригинальном StandardRPNHead
-
 FOLDER = "parts"
 
 
@@ -23,16 +19,27 @@ def generate_rpn(cfg, test_only=False, engine="pytorch"):
 	Генерирует код для RPN используя параметры из cfg.
 
 	Args:
-		cfg (Dict[String, Any]): Список параметров конфигурации ResNet:
-			"depth": Int - Глубина сети. Возможные значения: 18, 34, 50, 101, 152
-			"norm": String - Слой нормализации, который будет использоваться в сети
-				Возможные значения: "None", "BN", "FrozenBN"
-			"num_groups": Int - Количество групп для сверточных 3x3 слоев
-			"width_per_group": Int - Количество каналов к каждой группе
-			"stem_out_channels": Int - Количество каналов на выходе первого слоя
-			"res2_out_channels": Int - Количество каналов на выходе второго слоя
-			"stride_in_1x1": Bool - Будет ли stride проходить в слое 1x1 или же в слое 3x3
-			"res5_dilation": Int - dilation в последнем слое. Возможные значения: 1, 2
+		cfg (Dict[String, Any]): Список параметров конфигурации RPN:
+			iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
+			min_box_size: 0
+			ANCHOR_GENERATOR:  # Параметры генератора anchors
+				ratios: [0.5, 1.0, 2.0]
+				sizes: [[32], [64], [128], [256], [512]]
+			LOSS:
+				global_weight: 2.0  # Вклад ошибки RPN модуля в общую ошибку сети
+				box_reg_weight: 0.5  # Вклад ошибки локализации в ошибку RPN модуля
+				bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
+				smooth_l1_beta: 1.0  # Используется только если bbox_reg_loss_type == "smooth_l1"
+			TRAIN:  # Парамеры для обучения
+				pre_topk: 2000
+				nms_thress: 0.7
+				post_topk: 1000
+				batch_size_per_image: 256  # Количество изображений используемых для обучения RPN
+				positive_fraction: 0.5
+			TEST:  # Параметры для тестирования
+				pre_topk: 1000
+				nms_thress: 0.7
+				post_topk: 1000
 
 		test_only (Bool): Нужно ли генерировать код только для тестирования, или он
 			будет использоваться и для обучения

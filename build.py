@@ -7,6 +7,7 @@ import collections
 from builders import build_resnet, build_fpn
 from builders import build_rpn
 from builders import build_model
+from builders import build_fast_rcnn
 
 def unknown_value(value):
 	print(f"Неизвестное значение {value}\n")
@@ -54,6 +55,7 @@ libs_maps = {
 	"parts/resnet.py": (build_resnet, cfg["MODEL"]["BACKBONE"]["RESNETS"]),
 	"parts/fpn.py": (build_fpn, cfg["MODEL"]["BACKBONE"]["FPN"]),
 	"parts/rpn.py": (build_rpn, cfg["MODEL"]["PROPOSAL_GENERATOR"]["RPN"]),
+	"parts/fast_rcnn.py": (build_fast_rcnn, cfg["MODEL"]["ROI_HEAD"]["StandardROIHeads"]),
 	"parts/backbone.py": (safe_clone, "parts/backbone.py"),
 	"layers/conv_wrapper.py": (safe_clone, "layers/conv_wrapper.py"),
 	"layers/freeze_batchnorm.py": (safe_clone, "layers/freeze_batchnorm.py"),
@@ -68,6 +70,7 @@ import_maps = {
 	"parts/resnet.py": "from .resnet import ResNet",
 	"parts/fpn.py": "from .fpn import FPN",
 	"parts/rpn.py": "from .rpn import RPN",
+	"parts/fast_rcnn.py": "from .fast_rcnn import FastRCNN",
 	"parts/backbone.py": "from .backbone import Backbone",
 	"layers/conv_wrapper.py": "from .conv_wrapper import Conv2d",
 	"layers/freeze_batchnorm.py": "from .freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
