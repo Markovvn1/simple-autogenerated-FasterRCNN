@@ -36,6 +36,7 @@ def generate_fpn(cfg, test_only=False, engine="pytorch"):
 
 	assert cfg["norm"] in ["None", "BN", "FrozenBN"]
 	assert cfg["fuse_type"] in ["sum", "avg"]
+	assert isinstance(cfg["out_channels"], int) and cfg["out_channels"] > 0
 
 	if engine == "pytorch":
 		return generate_fpn_pytorch(cfg, test_only)

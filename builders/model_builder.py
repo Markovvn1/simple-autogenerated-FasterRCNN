@@ -18,8 +18,7 @@ def generate_model(cfg, test_only=False, engine="pytorch"):
 	assert isinstance(test_only, bool)
 	assert isinstance(engine, str)
 
-	assert isinstance(cfg["BACKBONE"]["FPN"]["out_channels"], int) and cfg["BACKBONE"]["FPN"]["out_channels"] > 0
-	assert all([i in ["stem", "res2", "res3", "res4", "res5"] for i in cfg["BACKBONE"]["RESNETS"]["out_features"]])
+	assert cfg["BACKBONE"]["name"] in ["fpn_resnet"]
 
 	if engine == "pytorch":
 		return generate_model_pytorch(cfg, test_only)

@@ -1,6 +1,6 @@
 MODEL:
   BACKBONE:
-    name: "resnet_fpn"  # Тип используемого backbone. {"resnet_fpn"}
+    name: "fpn_resnet"  # Тип используемого backbone. {"fpn_resnet"}
     RESNETS:
       # Параметры для генерации ResNet
       depth: 50  # Глубина сети. {18, 34, 50, 101, 152}
@@ -19,24 +19,40 @@ MODEL:
   PROPOSAL_GENERATOR:
     name: "RPN"  # Тип используемого PROPOSAL_GENERATOR. {"RPN"}
     RPN:
-      head_name: "StandardRPNHead"
       iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
       min_box_size: 0
-      bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
-      smooth_l1_beta: 1.0
       ANCHOR_GENERATOR:  # Параметры генератора anchors
         ratios: [0.5, 1.0, 2.0]
         sizes: [[32], [64], [128], [256], [512]]
-      LOSS_WEIGHT:  # Вес ошибок
-        rpn_cls: 1.0
-        rpn_loc: 1.0
+      LOSS:
+        global_weight: 2.0  # Вклад ошибки RPN модуля в общую ошибку сети
+        box_reg_weight: 0.5  # Вклад ошибки локализации в ошибку RPN модуля
+        bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
+        smooth_l1_beta: 1.0  # Используется только если bbox_reg_loss_type == "smooth_l1"
       TRAIN:  # Парамеры для обучения
         pre_topk: 2000
         nms_thress: 0.7
         post_topk: 1000
-        batch_size_per_image: 256
+        batch_size_per_image: 256  # Количество изображений используемых для обучения RPN
         positive_fraction: 0.5
       TEST:  # Параметры для тестирования
         pre_topk: 1000
         nms_thress: 0.7
         post_topk: 1000
+  ROI_HEAD:
+    name: "StandardROIHeads"
+    StandardROIHeads:
+      BOX_HEAD:
+        name: "FastRCNNConvFCHead"
+        norm: "None"
+        conv: []  # Количество выходных каналов в conv-слоях
+        fc: [1024, 1024]  # Количество каналов в FC-слоях
+      BBOX_REG_LOSS_TYPE: smooth_l1
+      BBOX_REG_LOSS_WEIGHT: 1.0
+      BBOX_REG_WEIGHTS: (10.0, 10.0, 5.0, 5.0)
+      CLS_AGNOSTIC_BBOX_REG: False
+      POOLER_RESOLUTION: 7
+      POOLER_SAMPLING_RATIO: 0
+      POOLER_TYPE: ROIAlignV2
+      SMOOTH_L1_BETA: 0.0
+      TRAIN_ON_PRED_BOXES: False

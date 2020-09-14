@@ -57,6 +57,8 @@ def generate_resnet(cfg, test_only=False, engine="pytorch"):
 	else:
 		assert cfg["res5_dilation"] in [1, 2]
 
+	assert all([i in ["stem", "res2", "res3", "res4", "res5"] for i in cfg["out_features"]])
+
 	if engine == "pytorch":
 		return generate_resnet_pytorch(cfg, test_only)
 	

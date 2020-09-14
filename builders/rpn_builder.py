@@ -47,7 +47,6 @@ def generate_rpn(cfg, test_only=False, engine="pytorch"):
 	is_pos_num = lambda x: isinstance(x, int) and x > 0
 	is_procent = lambda x: x >= 0 and x <= 1
 
-	assert cfg["head_name"] in ["StandardRPNHead"]
 	assert isinstance(cfg["iou_thresholds"], list) and len(cfg["iou_thresholds"]) == 2
 	assert is_procent(cfg["iou_thresholds"][0]) and is_procent(cfg["iou_thresholds"][1])
 
@@ -62,9 +61,10 @@ def generate_rpn(cfg, test_only=False, engine="pytorch"):
 		assert len(sizes[0]) > 0
 		assert len(set([len(i) for i in sizes])) == 1
 
-	assert cfg["bbox_reg_loss_type"] in ["smooth_l1", "giou"]
-	assert cfg["LOSS_WEIGHT"]["rpn_cls"] >= 0
-	assert cfg["LOSS_WEIGHT"]["rpn_loc"] >= 0
+	assert cfg["LOSS"]["bbox_reg_loss_type"] in ["smooth_l1", "giou"]
+	assert cfg["LOSS"]["global_weight"] >= 0
+	assert is_procent(cfg["LOSS"]["box_reg_weight"])
+	assert cfg["LOSS"]["smooth_l1_beta"] >= 0
 
 	assert is_pos_num(cfg["TRAIN"]["pre_topk"])
 	assert is_procent(cfg["TRAIN"]["nms_thress"])
@@ -92,7 +92,7 @@ def generate_rpn_pytorch(cfg, test_only):
 		res.append("import torch.nn as nn\n")
 		res.append("import torch.nn.functional as F\n")
 		res.append("import torchvision.ops.boxes as box_ops\n")
-		res.append(f"from fvcore.nn import {'smooth_l1_loss' if cfg['bbox_reg_loss_type'] == 'smooth_l1' else 'giou_loss'}\n\n")
+		res.append(f"from fvcore.nn import {'smooth_l1_loss' if cfg['LOSS']['bbox_reg_loss_type'] == 'smooth_l1' else 'giou_loss'}\n\n")
 
 		res.append(f"from ..utils import Boxes, Anchors, MultiAnchors{'' if test_only else ', Matcher, Subsampler'}\n\n")
 		libs.add("utils/boxes.py")
@@ -225,10 +225,10 @@ class RPN(nn.Module):
 
 		if not test_only:
 			res.append(f"""
-		self.loss_weight = {cfg["LOSS_WEIGHT"]}\n""")
+		self.loss_weight = {{"rpn_loc": {round(cfg["LOSS"]["global_weight"] * cfg["LOSS"]["box_reg_weight"], 7)}, "rpn_cls": {round(cfg["LOSS"]["global_weight"] * (1-cfg["LOSS"]["box_reg_weight"]), 7)}}}\n""")
 
 		if not test_only:
-			pred_data = "pred_anchor_deltas" if cfg["bbox_reg_loss_type"] == "smooth_l1" else "pred_proposals"
+			pred_data = "pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "pred_proposals"
 
 			res.append(f"""
 	@torch.no_grad()
@@ -267,14 +267,14 @@ class RPN(nn.Module):
 
 		losses = {{}}\n""")
 
-			if cfg["bbox_reg_loss_type"] == "smooth_l1":
+			if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1":
 				res.append(f"""
 		gt_anchor_deltas = Anchors.get_deltas(anchors, gt_boxes) # (N, sum(Hi*Wi*Ai), 4 or 5)
 		losses["rpn_loc"] = smooth_l1_loss(
 			{pred_data}[pos_mask], gt_anchor_deltas[pos_mask],
-			beta={cfg["smooth_l1_beta"]}, reduction="sum",
+			beta={cfg["LOSS"]["smooth_l1_beta"]}, reduction="sum",
 		)\n""")
-			elif cfg["bbox_reg_loss_type"] == "giou":
+			elif cfg["LOSS"]["bbox_reg_loss_type"] == "giou":
 				res.append(f"""
 		losses["rpn_loc"] = giou_loss(
 			{pred_data}[pos_mask], gt_boxes[pos_mask],
@@ -326,7 +326,7 @@ class RPN(nn.Module):
 		if not test_only:
 			res.append(f"""
 		if gt_instances is not None:
-			losses = self.losses(anchors, gt_instances, pred_objectness_logits, {"pred_anchor_deltas" if cfg["bbox_reg_loss_type"] == "smooth_l1" else "proposals"})
+			losses = self.losses(anchors, gt_instances, pred_objectness_logits, {"pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "proposals"})
 		else:
 			losses = {{}}\n""")
 
