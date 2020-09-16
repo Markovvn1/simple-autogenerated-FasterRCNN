@@ -8,6 +8,7 @@ from builders import build_resnet, build_fpn
 from builders import build_rpn
 from builders import build_model
 from builders import build_fast_rcnn
+from builders import build_pooler
 
 def unknown_value(value):
 	print(f"Неизвестное значение {value}\n")
@@ -59,11 +60,13 @@ libs_maps = {
 	"parts/backbone.py": (safe_clone, "parts/backbone.py"),
 	"layers/conv_wrapper.py": (safe_clone, "layers/conv_wrapper.py"),
 	"layers/freeze_batchnorm.py": (safe_clone, "layers/freeze_batchnorm.py"),
+	"layers/pooler.py": (build_pooler, cfg["MODEL"]["ROI_HEAD"]["StandardROIHeads"]["POOLER"]),
 	"utils/boxes.py": (safe_clone, "utils/boxes.py"),
 	"utils/anchors.py": (safe_clone, "utils/anchors.py"),
 	"utils/matcher.py": (safe_clone, "utils/matcher.py", ["utils/pairwise_iou.py"]),
 	"utils/pairwise_iou.py": (safe_clone, "utils/pairwise_iou.py"),
-	"utils/subsampler.py": (safe_clone, "utils/subsampler.py")
+	"utils/subsampler.py": (safe_clone, "utils/subsampler.py"),
+	"utils/box_transform.py": (safe_clone, "utils/box_transform.py"),
 }
 
 import_maps = {
@@ -74,11 +77,13 @@ import_maps = {
 	"parts/backbone.py": "from .backbone import Backbone",
 	"layers/conv_wrapper.py": "from .conv_wrapper import Conv2d",
 	"layers/freeze_batchnorm.py": "from .freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
+	"layers/pooler.py": "from .pooler import ROIPooler",
 	"utils/boxes.py": "from . import boxes as Boxes",
 	"utils/anchors.py": "from .anchors import Anchors, MultiAnchors",
 	"utils/matcher.py": "from .matcher import Matcher",
 	"utils/pairwise_iou.py": "from .pairwise_iou import pairwise_iou",
 	"utils/subsampler.py": "from .subsampler import Subsampler",
+	"utils/box_transform.py": "from .box_transform import BoxTransform",
 }
 
 def create_with_dependencies(lib):

@@ -63,10 +63,10 @@ def generate_rpn(cfg, test_only=False, engine="pytorch"):
 	assert isinstance(sizes, list) and len(sizes) > 0
 	if isinstance(ratios[0], list):
 		assert len(ratios[0]) > 0
-		assert len(set([len(i) for i in ratios])) == 1
+		assert len(set(len(i) for i in ratios)) == 1
 	if isinstance(sizes[0], list):
 		assert len(sizes[0]) > 0
-		assert len(set([len(i) for i in sizes])) == 1
+		assert len(set(len(i) for i in sizes)) == 1
 
 	assert cfg["LOSS"]["bbox_reg_loss_type"] in ["smooth_l1", "giou"]
 	assert cfg["LOSS"]["global_weight"] >= 0
@@ -101,9 +101,10 @@ def generate_rpn_pytorch(cfg, test_only):
 		res.append("import torchvision.ops.boxes as box_ops\n")
 		res.append(f"from fvcore.nn import {'smooth_l1_loss' if cfg['LOSS']['bbox_reg_loss_type'] == 'smooth_l1' else 'giou_loss'}\n\n")
 
-		res.append(f"from ..utils import Boxes, Anchors, MultiAnchors{'' if test_only else ', Matcher, Subsampler'}\n\n")
+		res.append(f"from ..utils import Boxes, Anchors, BoxTransform, MultiAnchors{'' if test_only else ', Matcher, Subsampler'}\n\n")
 		libs.add("utils/boxes.py")
 		libs.add("utils/anchors.py")
+		libs.add("utils/box_transform.py")
 		if not test_only:
 			libs.add("utils/matcher.py")
 			libs.add("utils/subsampler.py")
@@ -216,6 +217,7 @@ class RPN(nn.Module):
 		super().__init__()
 
 		self.anchor_generator = MultiAnchors({cfg["ANCHOR_GENERATOR"]["sizes"]}, {cfg["ANCHOR_GENERATOR"]["ratios"]}, strides)
+		self.transform = BoxTransform(weights={cfg["box_transform_weights"]})
 		assert len(set(self.anchor_generator.num_anchors)) == 1
 		self.rpn_head = StandardRPNHead(in_channels, self.anchor_generator.num_anchors[0], box_dim=4)""")
 		if test_only:
@@ -276,7 +278,7 @@ class RPN(nn.Module):
 
 			if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1":
 				res.append(f"""
-		gt_anchor_deltas = Anchors.get_deltas(anchors, gt_boxes) # (N, sum(Hi*Wi*Ai), 4 or 5)
+		gt_anchor_deltas = self.transform.get_deltas(anchors, gt_boxes) # (N, sum(Hi*Wi*Ai), 4 or 5)
 		losses["rpn_loc"] = smooth_l1_loss(
 			{pred_data}[pos_mask], gt_anchor_deltas[pos_mask],
 			beta={cfg["LOSS"]["smooth_l1_beta"]}, reduction="sum",
@@ -327,7 +329,7 @@ class RPN(nn.Module):
 		del features
 
 		# decode proposals
-		proposals = [Anchors.apply_deltas(a, d) for a, d in zip(anchors, pred_anchor_deltas)]
+		proposals = [self.transform.apply_deltas(a, d) for a, d in zip(anchors, pred_anchor_deltas)]
 		""")
 
 		if not test_only:
