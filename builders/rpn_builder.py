@@ -54,8 +54,8 @@ def generate_rpn(cfg, test_only=False, engine="pytorch"):
 	is_pos_num = lambda x: isinstance(x, int) and x > 0
 	is_procent = lambda x: x >= 0 and x <= 1
 
-	assert isinstance(cfg["iou_thresholds"], list) and len(cfg["iou_thresholds"]) == 2
-	assert is_procent(cfg["iou_thresholds"][0]) and is_procent(cfg["iou_thresholds"][1])
+	assert isinstance(cfg["TRAIN"]["iou_thresholds"], list) and len(cfg["TRAIN"]["iou_thresholds"]) == 2
+	assert is_procent(cfg["TRAIN"]["iou_thresholds"][0]) and is_procent(cfg["TRAIN"]["iou_thresholds"][1])
 
 	ratios = cfg["ANCHOR_GENERATOR"]["ratios"]
 	sizes = cfg["ANCHOR_GENERATOR"]["sizes"]
@@ -159,7 +159,7 @@ class SelectRPNProposals:
 		self.min_box_size = min_box_size\n""")
 
 		res.append("""
-	def __call__(self, proposals, logits, image_sizes):
+	def __call__(self, logits, proposals, image_sizes):
 		device = proposals[0].device
 		batch_idx = torch.arange(len(proposals[0]), device=device).unsqueeze(-1)
 
@@ -222,15 +222,15 @@ class RPN(nn.Module):
 		self.rpn_head = StandardRPNHead(in_channels, self.anchor_generator.num_anchors[0], box_dim=4)""")
 		if test_only:
 			res.append(f"""
-		self.find_top_rpn_proposals = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})\n""")
+		self.find_top_proposals = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})\n""")
 		else:
 			res.append(f"""
-		self.anchor_matcher = Matcher(bg_threshold={cfg["iou_thresholds"][0]}, fg_threshold={cfg["iou_thresholds"][1]}, allow_low_quality_matches=True)
+		self.anchor_matcher = Matcher(bg_threshold={cfg["TRAIN"]["iou_thresholds"][0]}, fg_threshold={cfg["TRAIN"]["iou_thresholds"][1]}, allow_low_quality_matches=True)
 		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]})
 
 		selector_test = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
 		selector_train = SelectRPNProposals({cfg["TRAIN"]["pre_topk"]}, {cfg["TRAIN"]["nms_thress"]}, {cfg["TRAIN"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
-		self.find_top_rpn_proposals = lambda *args: (selector_train if self.training else selector_test)(*args)\n""")
+		self.find_top_proposals = lambda *args: (selector_train if self.training else selector_test)(*args)\n""")
 
 		if not test_only:
 			res.append(f"""
@@ -341,7 +341,7 @@ class RPN(nn.Module):
 
 		res.append(f"""
 		# choose the best proposals
-		proposals = self.find_top_rpn_proposals(proposals, pred_objectness_logits, image_sizes)
+		proposals = self.find_top_proposals(pred_objectness_logits, proposals, image_sizes)
 		return proposals{"" if test_only else ", losses"}""")
 
 	generate_imports()

@@ -19,7 +19,6 @@ MODEL:
   PROPOSAL_GENERATOR:
     name: "RPN"  # Тип используемого PROPOSAL_GENERATOR. {"RPN"}
     RPN:
-      iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
       min_box_size: 0
       box_transform_weights: [1.0, 1.0, 1.0, 1.0]  # Коэффициенты на которые будут умножаться значения локализации
       ANCHOR_GENERATOR:  # Параметры генератора anchors
@@ -28,14 +27,15 @@ MODEL:
       LOSS:
         global_weight: 2.0  # Вклад ошибки RPN модуля в общую ошибку сети
         box_reg_weight: 0.5  # Вклад ошибки локализации в ошибку RPN модуля
-        bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
-        smooth_l1_beta: 1.0  # Используется только если bbox_reg_loss_type == "smooth_l1"
+        bbox_reg_loss_type: "smooth_l1"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"} TODO: change to giou
+        smooth_l1_beta: 0.0  # Используется только если bbox_reg_loss_type == "smooth_l1" TODO: change to 1
       TRAIN:  # Парамеры для обучения
         pre_topk: 2000
         nms_thress: 0.7
         post_topk: 1000
         batch_size_per_image: 256  # Количество изображений используемых для обучения RPN
-        positive_fraction: 0.5
+        positive_fraction: 0.5  # Процент положительных изображений в минибатче
+        iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
       TEST:  # Параметры для тестирования
         pre_topk: 1000
         nms_thress: 0.7
@@ -43,7 +43,8 @@ MODEL:
   ROI_HEAD:
     name: "StandardROIHeads"
     StandardROIHeads:
-      is_agnostic: True  # Если False, то для каждого класса будет использоваться свой предсказатель, иначе буде использоваться общий
+      is_agnostic: False  # Если False, то для каждого класса будет использоваться свой предсказатель, иначе буде использоваться общий
+      box_transform_weights: [10.0, 10.0, 5.0, 5.0]  # Коэффициенты на которые будут умножаться значения локализации
       BOX_HEAD:
         name: "FastRCNNConvFCHead"
         FastRCNNConvFCHead:
@@ -52,14 +53,18 @@ MODEL:
           fc: [1024, 1024]  # Количество каналов в FC-слоях
       POOLER:
         type: "RoIAlignV2"  # Тип pooler. {"RoIAlign", "RoIAlignV2", "RoIPool"}
-        resolution: 7
-        sampling_ratio: 0
-      BBOX_REG_LOSS_TYPE: smooth_l1
-      BBOX_REG_LOSS_WEIGHT: 1.0
-      BBOX_REG_WEIGHTS: (10.0, 10.0, 5.0, 5.0)
-      CLS_AGNOSTIC_BBOX_REG: False
-      POOLER_RESOLUTION: 7
-      POOLER_SAMPLING_RATIO: 0
-      POOLER_TYPE: ROIAlignV2
-      SMOOTH_L1_BETA: 0.0
-      TRAIN_ON_PRED_BOXES: False
+        resolution: 7  # Выходной размер pooler
+        sampling_ratio: -1  # see torchvision.ops.roi_align
+      LOSS:
+        global_weight: 2.0  # Вклад ошибки ROI_HEAD модуля в общую ошибку сети
+        box_reg_weight: 0.5  # Вклад ошибки локализации в ошибку ROI_HEAD модуля
+        bbox_reg_loss_type: "smooth_l1"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"} TODO: change to giou
+        smooth_l1_beta: 0.0  # Используется только если bbox_reg_loss_type == "smooth_l1" TODO: change to 1
+      TRAIN:
+        batch_size_per_image: 512  # Количество изображений используемых для обучения ROI_HEAD
+        positive_fraction: 0.25  # Процент положительных изображений в минибатче
+        append_gt_to_proposal: True  # Добавить ground truth коробки в список предсказанных RPN (говорят ускоряет обучение)
+        iou_thresholds: [0.5, 0.5]  # Пороги для определения является ли prop background или foreground
+      TEST:
+        nms_thresh: 0.5
+        score_thresh: 0.85  # Коробки, имеющие меньший результат, будут удалены

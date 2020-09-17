@@ -33,7 +33,12 @@ def generate_pooler(cfg, test_only=False, engine="pytorch"):
 	assert isinstance(engine, str)
 
 	assert cfg["type"] in ["RoIAlign", "RoIAlignV2", "RoIPool"]
-	assert isinstance(cfg["resolution"], int) and cfg["resolution"] > 0
+	if isinstance(cfg["resolution"], int):
+		assert cfg["resolution"] > 0
+	else:
+		assert isinstance(cfg["resolution"], (list, tuple)) and len(cfg["resolution"]) == 2
+		assert all([isinstance(i, int) and i > 0 for i in cfg["resolution"]])
+		
 	assert isinstance(cfg["sampling_ratio"], int)
 
 	if engine == "pytorch":
@@ -110,8 +115,9 @@ class RoIPooler(nn.Module):
 
 		# function which use size=sqrt(area) to calculate idx of needed feature map
 		eps = float_info.epsilon
-		self.size2lavel_idx = lambda size: (canonical_level + (size / canonical_box_size + eps).log2())\\
-			.floor_().long().clamp_(min_level, max_level) - min_level\n""")
+		canonical_level -= log2(canonical_box_size)  # for optimization
+		self.size2lavel_idx = lambda size: (canonical_level + (size + eps).log2())\\
+			.floor_().clamp_(min_level, max_level).long() - min_level\n""")
 
 		if cfg["type"] in ["RoIAlign", "RoIAlignV2"]:
 			res.append(f"""
@@ -127,27 +133,20 @@ class RoIPooler(nn.Module):
 		Args:
 			x (list[Tensor]): A list of feature maps of NCHW shape, with scales matching those
 				used to construct this module.
-			boxes (list[Boxes] | list[RotatedBoxes]):
-				A list of N Boxes or N RotatedBoxes, where N is the number of images in the batch.
-				The box coordinates are defined on the original image and
-				will be scaled by the `scales` argument of :class:`RoIPooler`.
+			boxes (Tensor): Tensor of shape (M, 5), which represent boxes over all batch. There are
+				5 columns: batch_idx, x0, y0, x1, y1
 
 		Returns:
 			Tensor:
 				A tensor of shape (M, C, output_size, output_size) where M is the total number of
 				boxes aggregated over all N batch images and C is the number of channels in `x`.
 		\"\"\"
-		assert isinstance(x, list) and isinstance(boxes, list)
+		assert isinstance(x, list)
+		assert isinstance(boxes, torch.Tensor) and boxes.size(1) == 5
 		assert len(x) == len(self.level_poolers)
-		assert len(boxes) == x[0].size(0), "unequal amount of images in batch"
 		assert len(set(i.size(1) for i in x)) == 1, "number of channels have to be the same"
 
 		device, dtype = x[0].device, x[0].dtype
-
-		# Prepare boxes for pooling. Concatenate it with batch index to get (batch index, x0, y0, x1, y1)
-		batch_idx = [torch.full((len(b), 1), i, dtype=dtype, device=device) for i, b in enumerate(boxes)]
-		boxes = [torch.cat(item, dim=1) for item in zip(batch_idx, boxes)]
-		boxes = torch.cat(boxes)
 
 		if len(self.level_poolers) == 1:
 			return self.level_poolers[0](x[0], boxes)

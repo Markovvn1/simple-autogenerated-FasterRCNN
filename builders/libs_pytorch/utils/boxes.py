@@ -9,8 +9,8 @@ def clamp_(boxes, box_size):
 			box_size (height, width): The clipping box's size.
 	"""
 	assert torch.isfinite(boxes).all(), "Box tensor contains infinite or NaN!"
-	boxes[:, 0::2].clamp_(min=0, max=box_size[0])
-	boxes[:, 1::2].clamp_(min=0, max=box_size[1])
+	boxes[..., 0::2].clamp_(min=0, max=box_size[0])
+	boxes[..., 1::2].clamp_(min=0, max=box_size[1])
 
 def nonempty(boxes, threshold: float=0.0):
 	"""

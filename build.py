@@ -4,6 +4,13 @@ import shutil
 import yaml
 import collections
 
+# TODO:
+"""
+Model:
+	image size: (height, width)
+	output already sorted
+"""
+
 from builders import build_resnet, build_fpn
 from builders import build_rpn
 from builders import build_model
@@ -73,11 +80,11 @@ import_maps = {
 	"parts/resnet.py": "from .resnet import ResNet",
 	"parts/fpn.py": "from .fpn import FPN",
 	"parts/rpn.py": "from .rpn import RPN",
-	"parts/fast_rcnn.py": "from .fast_rcnn import FastRCNN",
+	"parts/fast_rcnn.py": "from .fast_rcnn import FastRCNNHead",
 	"parts/backbone.py": "from .backbone import Backbone",
 	"layers/conv_wrapper.py": "from .conv_wrapper import Conv2d",
 	"layers/freeze_batchnorm.py": "from .freeze_batchnorm import ModuleWithFreeze, FrozenBatchNorm2d",
-	"layers/pooler.py": "from .pooler import ROIPooler",
+	"layers/pooler.py": "from .pooler import RoIPooler",
 	"utils/boxes.py": "from . import boxes as Boxes",
 	"utils/anchors.py": "from .anchors import Anchors, MultiAnchors",
 	"utils/matcher.py": "from .matcher import Matcher",
