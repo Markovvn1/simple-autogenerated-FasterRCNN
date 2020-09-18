@@ -32,3 +32,9 @@ def xywh2xyxy(boxes):
 	res[..., :2] = boxes[..., :2] - wh_half
 	res[..., 2:] = boxes[..., :2] + wh_half
 	return res
+
+def xyxy2xywh(boxes):
+	res = torch.empty_like(boxes)
+	res[..., :2] = (boxes[..., 2:] + boxes[..., :2]) / 2
+	res[..., 2:] = boxes[..., 2:] - boxes[..., :2]
+	return res

@@ -1,7 +1,7 @@
 MODEL:
   BACKBONE:
     name: "fpn_resnet"  # Тип используемого backbone. {"fpn_resnet"}
-    RESNETS:
+    RESNETS:  # TODO: freeze at
       # Параметры для генерации ResNet
       depth: 50  # Глубина сети. {18, 34, 50, 101, 152}
       norm: "FrozenBN"  # Тип слоя нормализации для conv. {"None", "BN", "FrozenBN"}  TODO: change to BN

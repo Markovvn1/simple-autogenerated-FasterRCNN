@@ -247,7 +247,8 @@ class FastRCNNHead(nn.Module):
 
 		scores, proposal_deltas = self.box_head(features)
 		scores = F.softmax(scores, dim=-1).split(num_prop_per_image)
-		boxes = self.transform.apply_deltas(proposals[:, 1:].unsqueeze(1), proposal_deltas).split(num_prop_per_image)
+		proposals = Boxes.xyxy2xywh(proposals[:, 1:]).unsqueeze(1)
+		boxes = self.transform.apply_deltas(proposals, proposal_deltas).split(num_prop_per_image)
 
 		return self.find_top_predictions(scores, boxes, image_sizes){"" if test_only else ", {}"}\n""")
 

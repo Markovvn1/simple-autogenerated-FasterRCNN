@@ -78,8 +78,8 @@ class FasterRCNN(nn.Module):
 		self.in_channels = in_channels
 		bottom_up = ResNet(in_channels=in_channels, out_features={cfg["BACKBONE"]["RESNETS"]["out_features"]})
 		self.backbone = FPN(bottom_up, out_channels={cfg["BACKBONE"]["FPN"]["out_channels"]})
-		self.rpn = RPN(self.backbone.out_channels[0], self.backbone.out_strides)
-		self.roi_head = FastRCNNHead(self.backbone.out_channels[0], self.backbone.out_strides,
+		self.proposal_generator = RPN(self.backbone.out_channels[0], self.backbone.out_strides)
+		self.roi_heads = FastRCNNHead(self.backbone.out_channels[0], self.backbone.out_strides,
 			num_classes, score_thresh, nms_thresh, topk_per_image)
 
 	def _concat_images(self, x):
@@ -88,13 +88,11 @@ class FasterRCNN(nn.Module):
 		if len(x) == 1: return x[0].unsqueeze(0), [x[0].shape[-2:]]
 
 		image_sizes = [i.shape[-2:] for i in x]
-		h_max = max(i[0] for i in image_sizes)
-		w_max = max(i[1] for i in image_sizes)
-
-		h = [h_max - i[0] for i in image_sizes]
-		w = [w_max - i[1] for i in image_sizes]
-
-		x = [F.pad(item, (w[i]//2, w[i] - w[i]//2, h[i]//2, h[i] - h[i]//2)) for i in x]
+		sd = self.backbone.size_divisibility
+		h_max = (max(i[0] for i in image_sizes) + sd - 1) // sd
+		w_max = (max(i[1] for i in image_sizes) + sd - 1) // sd
+		# TODO: попробовать как в detectron2
+		x = [F.pad(item, (0, w_max - sz[1], 0, h_max - sz[0])) for i, sz in zip(x, image_sizes)]
 		return torch.stack(x), image_sizes
 
 	def forward(self, images{"" if test_only else ", gt_instances=None"}):
@@ -110,9 +108,9 @@ class FasterRCNN(nn.Module):
 		res.append(f"""
 		images, image_sizes = self._concat_images(images)
 		features = self.backbone(images)
-		proposals{"" if test_only else ", rpn_loss"} = self.rpn(features, image_sizes{"" if test_only else ", gt_instances"})
+		proposals{"" if test_only else ", rpn_loss"} = self.proposal_generator(features, image_sizes{"" if test_only else ", gt_instances"})
 		proposals = [i[1] for i in proposals]  # delete rpn scores
-		predicts{"" if test_only else ", roi_loss"} = self.roi_head(features, image_sizes, proposals{"" if test_only else ", gt_instances"})
+		predicts{"" if test_only else ", roi_loss"} = self.roi_heads(features, image_sizes, proposals{"" if test_only else ", gt_instances"})
 		return predicts{"" if test_only else ", {**rpn_loss, **roi_loss}"}\n""")
 
 		if not test_only:

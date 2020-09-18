@@ -50,7 +50,7 @@ class BoxTransform:
 
 		deltas = deltas / self.weights.to(device=deltas.device)
 		pred_xy = deltas[..., :2] * anchors[..., 2:] + anchors[..., :2]
-		pred_wh = torch.exp(deltas[..., 2:].clamp_max(SCALE_CLAMP)) * anchors[..., 2:]
+		pred_wh = deltas[..., 2:].clamp_max(SCALE_CLAMP).exp() * anchors[..., 2:]
 
 		res = torch.empty_like(deltas)
 		res[..., :2] = pred_xy - pred_wh / 2
