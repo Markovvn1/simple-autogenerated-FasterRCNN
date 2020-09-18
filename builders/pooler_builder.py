@@ -155,7 +155,7 @@ class RoIPooler(nn.Module):
 		res = torch.empty((len(boxes), x[0].shape[1], *self.output_size), dtype=x[0].dtype, device=x[0].device)
 
 		for level, (x_level, pooler) in enumerate(zip(x, self.level_poolers)):
-			inds = (level_assignments == level).nonzero().view(-1)
+			inds = (level_assignments == level).nonzero(as_tuple=True)[0]
 			res[inds] = pooler(x_level, boxes[inds])
 
 		return res\n""")

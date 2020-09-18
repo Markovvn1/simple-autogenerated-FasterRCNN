@@ -14,7 +14,7 @@ class Anchors(nn.Module):
 		shift = torch.full((len(r),), stride / 2)
 
 		self.stride = stride
-		self.register_buffer("_cell_anchors", torch.stack([shift, shift, s / r, s * r], dim=1))
+		self.register_buffer("_cell_anchors", torch.stack([shift, shift, s / r, s * r], dim=1), persistent=False)
 
 	def __meshgrid(self, x, y):
 		return x.repeat(len(y)), y.view(-1, 1).repeat(1, len(x)).view(-1)

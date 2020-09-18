@@ -201,7 +201,7 @@ class SelectRCNNPredictions:
 		Boxes.clamp_(boxes, image_size)
 
 		# filter_inds contain 2 elements: (idx of predictions, class)
-		filter_inds = (scores > self.score_thresh).nonzero().unbind(1)
+		filter_inds = (scores > self.score_thresh).nonzero(as_tuple=True)
 		boxes = boxes[filter_inds{"[0], 0" if cfg["is_agnostic"] else ""}]{"  # agnostic" if cfg["is_agnostic"] else ""}
 		scores = scores[filter_inds]
 

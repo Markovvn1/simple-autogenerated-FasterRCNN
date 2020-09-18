@@ -35,7 +35,7 @@ class Matcher:
 
 		if self.allow_low_quality_matches:
 			highest_quality_foreach_gt = x.max(dim=1).values
-			pred_inds_with_highest_quality = (x == highest_quality_foreach_gt[:, None]).nonzero()[:, 1]
+			pred_inds_with_highest_quality = (x == highest_quality_foreach_gt[:, None]).nonzero(as_tuple=True)[1]
 
 			# If an anchor was labeled positive only due to a low-quality match
 			# with gt_A, but it has larger overlap with gt_B, it's matched index
