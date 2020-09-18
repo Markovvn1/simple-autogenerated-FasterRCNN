@@ -9,14 +9,14 @@ import torch.nn as nn
 SCALE_CLAMP = math.log(1000.0 / 16)
 
 
-class BoxTransform(nn.Module):
+class BoxTransform:
 
 	def __init__(self, weights):
 		assert isinstance(weights, (list, tuple)) and len(weights) == 4
 		assert all([isinstance(i, (float, int)) for i in weights])
 		self.weights = torch.tensor(weights, dtype=torch.float32)
 
-	def get_deltas(anchors, target_boxes):
+	def get_deltas(self, anchors, target_boxes):
 		"""
 		Args:
 			anchors (Tensor): anchors в формате xywh, (..., 4)
@@ -36,7 +36,7 @@ class BoxTransform(nn.Module):
 		res[..., 2:] = (target_wh / anchors[..., 2:]).log()
 		return res * self.weights.to(device=res.device)
 
-	def apply_deltas(anchors, deltas):
+	def apply_deltas(self, anchors, deltas):
 		"""
 		Args:
 			anchors (Tensor): anchors в формате xywh, (..., 4)

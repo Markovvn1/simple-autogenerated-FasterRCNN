@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import fvcore.nn.weight_init as weight_init
+from fvcore.nn import weight_init
 
 class Conv2d(nn.Conv2d):
 

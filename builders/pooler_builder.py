@@ -146,15 +146,13 @@ class RoIPooler(nn.Module):
 		assert len(x) == len(self.level_poolers)
 		assert len(set(i.size(1) for i in x)) == 1, "number of channels have to be the same"
 
-		device, dtype = x[0].device, x[0].dtype
-
 		if len(self.level_poolers) == 1:
 			return self.level_poolers[0](x[0], boxes)
 
 		# Calculate area and use it to calculate level_assignments
 		level_assignments = self.size2lavel_idx((boxes[:, 3:5] - boxes[:, 1:3]).prod(dim=1).sqrt())
 
-		res = torch.empty((len(boxes), x[0].shape[1], *self.output_size), dtype=dtype, device=device)
+		res = torch.empty((len(boxes), x[0].shape[1], *self.output_size), dtype=x[0].dtype, device=x[0].device)
 
 		for level, (x_level, pooler) in enumerate(zip(x, self.level_poolers)):
 			inds = (level_assignments == level).nonzero().view(-1)

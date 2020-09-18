@@ -27,8 +27,8 @@ MODEL:
       LOSS:
         global_weight: 2.0  # Вклад ошибки RPN модуля в общую ошибку сети
         box_reg_weight: 0.5  # Вклад ошибки локализации в ошибку RPN модуля
-        bbox_reg_loss_type: "smooth_l1"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"} TODO: change to giou
-        smooth_l1_beta: 0.0  # Используется только если bbox_reg_loss_type == "smooth_l1" TODO: change to 1
+        bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
+        smooth_l1_beta: 1.0  # Используется только если bbox_reg_loss_type == "smooth_l1"
       TRAIN:  # Парамеры для обучения
         pre_topk: 2000
         nms_thress: 0.7
@@ -66,5 +66,5 @@ MODEL:
         append_gt_to_proposal: True  # Добавить ground truth коробки в список предсказанных RPN (говорят ускоряет обучение)
         iou_thresholds: [0.5, 0.5]  # Пороги для определения является ли prop background или foreground
       TEST:
-        nms_thresh: 0.5
+        nms_thresh: 0.5  # Допустимый показатель IOU для результатов
         score_thresh: 0.85  # Коробки, имеющие меньший результат, будут удалены

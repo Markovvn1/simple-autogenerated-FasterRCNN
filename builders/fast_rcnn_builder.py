@@ -78,9 +78,14 @@ def generate_fast_rcnn_pytorch(cfg, test_only):
 	def generate_imports():
 		res.append("import torch\n")
 		res.append("import torch.nn as nn\n")
-		res.append("import torch.nn.functional as F\n\n")
+		res.append("import torch.nn.functional as F\n")
+		res.append("import torchvision.ops.boxes as box_ops\n")
 
-		res.append("from ..layers import RoIPooler")
+		if not test_only:
+			res.append("from fvcore.nn import weight_init\n")
+		res.append
+
+		res.append("\nfrom ..layers import RoIPooler")
 		libs.add("layers/pooler.py")
 
 		if not test_only:
@@ -187,13 +192,13 @@ class SelectRCNNPredictions:
 		self.topk_per_image = topk_per_image
 
 	def _process_image(self, scores, boxes, image_size):
-		valid_mask = torch.isfinite(boxes).all(dim=(1, 2)) & torch.isfinite(scores).all(dim=1)
+		valid_mask = torch.isfinite(boxes).all(1).all(1) & torch.isfinite(scores).all(dim=1)
 		if not valid_mask.all():
 			boxes = boxes[valid_mask]
 			scores = scores[valid_mask]
 
 		scores = scores[:, :-1]  # cut class for background
-		Boxes.clip_(boxes, image_size)
+		Boxes.clamp_(boxes, image_size)
 
 		# filter_inds contain 2 elements: (idx of predictions, class)
 		filter_inds = (scores > self.score_thresh).nonzero().unbind(1)
@@ -201,7 +206,7 @@ class SelectRCNNPredictions:
 		scores = scores[filter_inds]
 
 		# Apply per-class NMS
-		keep = batched_nms(boxes, scores, filter_inds[1], self.nms_thresh)
+		keep = box_ops.batched_nms(boxes, scores, filter_inds[1], self.nms_thresh)
 		if self.topk_per_image >= 0:
 			keep = keep[:self.topk_per_image]
 
@@ -224,16 +229,17 @@ class FastRCNNHead(nn.Module):
 			res.append(f"""\
 		self.matcher = Matcher(bg_threshold={cfg["TRAIN"]["iou_thresholds"][0]}, fg_threshold={cfg["TRAIN"]["iou_thresholds"][1]}, allow_low_quality_matches=False)\n""")
 
-		res.append("""\
-		self.find_top_predictions = SelectRoIPredictions(score_thresh, nms_thresh, topk_per_image)
+		res.append(f"""\
+		self.find_top_predictions = SelectRCNNPredictions(score_thresh, nms_thresh, topk_per_image)
 
 	def _concat_proposals(self, proposals):
 		\"\"\"Prepare proposals for pooling. Concatenate it with batch index\"\"\"
+		dtype, device = proposals[0].dtype, proposals[0].device
 		batch_idx = [torch.full((len(b), 1), i, dtype=dtype, device=device) for i, b in enumerate(proposals)]
 		proposals = [torch.cat(item, dim=1) for item in zip(batch_idx, proposals)]
 		return torch.cat(proposals)  # (idx, x0, y0, x1, y1)
 
-	def forward(self, features, image_sizes, proposals):
+	def forward(self, features, image_sizes, proposals{"" if test_only else ", gt_instances=None"}):
 		num_prop_per_image = [len(p) for p in proposals]
 		
 		proposals = self._concat_proposals(proposals)  # (M, 5)
@@ -241,9 +247,9 @@ class FastRCNNHead(nn.Module):
 
 		scores, proposal_deltas = self.box_head(features)
 		scores = F.softmax(scores, dim=-1).split(num_prop_per_image)
-		boxes = self.transform.apply_deltas(proposals[:, 1:], proposal_deltas).split(num_prop_per_image)
+		boxes = self.transform.apply_deltas(proposals[:, 1:].unsqueeze(1), proposal_deltas).split(num_prop_per_image)
 
-		return self.find_top_predictions(scores, boxes, image_sizes)\n""")
+		return self.find_top_predictions(scores, boxes, image_sizes){"" if test_only else ", {}"}\n""")
 
 	generate_imports()
 	if cfg["BOX_HEAD"]["name"] == "FastRCNNConvFCHead":
