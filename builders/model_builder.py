@@ -37,11 +37,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .parts import ResNet, FPN, RPN, FastRCNNHead\n""")
+from .parts import ResNet, FPN, RPN, FastRCNNHead
+from .utils import Images\n""")
 		libs.add("parts/resnet.py")
 		libs.add("parts/fpn.py")
 		libs.add("parts/rpn.py")
 		libs.add("parts/fast_rcnn.py")
+		libs.add("utils/images.py")
 
 		if not test_only:
 			res.append(f"from .layers import Conv2d\n")
@@ -82,20 +84,24 @@ class FasterRCNN(nn.Module):
 		self.roi_heads = FastRCNNHead(self.backbone.out_channels[0], self.backbone.out_strides,
 			num_classes, score_thresh, nms_thresh, topk_per_image)
 
-	def _concat_images(self, x):
-		assert isinstance(x, list) and len(x) > 0
-		assert all([i.dim() == 3 and i.size(0) == self.in_channels for i in x])
-		if len(x) == 1: return x[0].unsqueeze(0), [x[0].shape[-2:]]
+	def _assert_inputs(self, images{"" if test_only else ", targets"}):
+		assert len(images) > 0
+		assert isinstance(images, list) and len(images) > 0
+		assert all([i.dim() == 3 and i.size(0) == self.in_channels for i in images])\n""")
 
-		image_sizes = [i.shape[-2:] for i in x]
-		sd = self.backbone.size_divisibility
-		h_max = (max(i[0] for i in image_sizes) + sd - 1) // sd
-		w_max = (max(i[1] for i in image_sizes) + sd - 1) // sd
-		# TODO: попробовать как в detectron2
-		x = [F.pad(item, (0, w_max - sz[1], 0, h_max - sz[0])) for i, sz in zip(x, image_sizes)]
-		return torch.stack(x), image_sizes
+		if not test_only:
+			res.append(f"""
+		if targets is None: return
+		assert isinstance(targets, (list, tuple)) and len(targets) == len(images)
+		for item in targets:
+			pre_len = -1
+			for k, v in item.items():
+				assert isinstance(v, torch.Tensor)
+				assert pre_len == -1 or len(v) == pre_len, "Некоторые таргеты имеют разные размеры"
+				pre_len = len(v)\n""")
 
-	def forward(self, images{"" if test_only else ", gt_instances=None"}):
+		res.append(f"""
+	def forward(self, images{"" if test_only else ", targets=None"}):
 		\"\"\"
 		Args:
 			images (list[tensor]): лист, содержащий картинки в виде тензора с
@@ -103,14 +109,15 @@ class FasterRCNN(nn.Module):
 		\"\"\"""")
 		if test_only:
 			res.append("""
-		assert not self.training, "This model is only for evaluation!"\n""")
+		assert not self.training, \"This model is only for evaluation!\"""")
 
 		res.append(f"""
-		images, image_sizes = self._concat_images(images)
+		self._assert_inputs(images{"" if test_only else ", targets"})
+
+		images, image_sizes = Images.concat_images(images, self.backbone.size_divisibility)
 		features = self.backbone(images)
-		proposals{"" if test_only else ", rpn_loss"} = self.proposal_generator(features, image_sizes{"" if test_only else ", gt_instances"})
-		proposals = [i[1] for i in proposals]  # delete rpn scores
-		predicts{"" if test_only else ", roi_loss"} = self.roi_heads(features, image_sizes, proposals{"" if test_only else ", gt_instances"})
+		proposals{"" if test_only else ", rpn_loss"} = self.proposal_generator(features, image_sizes{"" if test_only else ", targets"})
+		predicts{"" if test_only else ", roi_loss"} = self.roi_heads(features, image_sizes, [i[1] for i in proposals]{"" if test_only else ", targets"})
 		return predicts{"" if test_only else ", {**rpn_loss, **roi_loss}"}\n""")
 
 		if not test_only:

@@ -241,7 +241,7 @@ class RPN(nn.Module):
 
 			res.append(f"""
 	@torch.no_grad()
-	def label_and_sample_anchors(self, anchors, gt_instances):
+	def label_and_sample_anchors(self, anchors, targets):
 		\"\"\"
 		Каждому anchor подобрать наиболее подходящий ground truth box.
 
@@ -254,18 +254,18 @@ class RPN(nn.Module):
 		gt_labels = []
 		gt_boxes = []  # matched ground truth boxes
 
-		for item in [x["boxes"] for x in gt_instances]:
+		for item in [x["boxes"] for x in targets]:
 			matched_idxs, gt_labels_i = self.anchor_matcher(item, Boxes.xywh2xyxy(anchors))
 			gt_labels.append(self.subsampler.return_as_mask(gt_labels_i))  # (N, A*H*W)
 			gt_boxes.append(item[matched_idxs] if len(item) != 0 else torch.zeros_like(anchors))
 
 		return torch.stack(gt_labels), torch.stack(gt_boxes)
 
-	def losses(self, anchors, gt_instances, pred_objectness_logits, {pred_data}):
-		assert gt_instances is not None
+	def losses(self, anchors, targets, pred_objectness_logits, {pred_data}):
+		assert targets is not None
 
 		anchors = torch.cat(anchors)
-		gt_labels, gt_boxes = self.label_and_sample_anchors(anchors, gt_instances)
+		gt_labels, gt_boxes = self.label_and_sample_anchors(anchors, targets)
 
 		pos_mask = gt_labels == 1
 		num_pos_anchors = pos_mask.sum().item()
@@ -302,7 +302,7 @@ class RPN(nn.Module):
 		return {k: v * self.loss_weight[k] / normalizer for k, v in losses.items()}\n""")
 
 		res.append(f"""
-	def forward(self, features, image_sizes{"" if test_only else ", gt_instances=None"}):
+	def forward(self, features, image_sizes{"" if test_only else ", targets=None"}):
 		\"\"\"
 		Args:
 			features (list[Tensor]): input features
@@ -310,7 +310,7 @@ class RPN(nn.Module):
 
 		if not test_only:
 			res.append("""
-			gt_instances (list[Instances], optional): a length `N` list of `Instances`s.
+			targets (list[Instances], optional): a length `N` list of `Instances`s.
 				Each `Instances` stores ground-truth instances for the corresponding image.""")
 
 		res.append("""\n
@@ -334,8 +334,8 @@ class RPN(nn.Module):
 
 		if not test_only:
 			res.append(f"""
-		if gt_instances is not None:
-			losses = self.losses(anchors, gt_instances, pred_objectness_logits, {"pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "proposals"})
+		if targets is not None:
+			losses = self.losses(anchors, targets, pred_objectness_logits, {"pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "proposals"})
 		else:
 			losses = {{}}\n""")
 

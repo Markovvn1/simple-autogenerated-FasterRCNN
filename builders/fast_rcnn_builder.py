@@ -101,9 +101,10 @@ def generate_fast_rcnn_pytorch(cfg, test_only):
 		libs.add("utils/boxes.py")
 
 		if not test_only:
-			res.append(", Matcher, BoxTransform")
+			res.append(", Matcher, BoxTransform, Subsampler")
 			libs.add("utils/matcher.py")
 			libs.add("utils/box_transform.py")
+			libs.add("utils/subsampler.py")
 
 		res.append("\n\n")
 
@@ -222,12 +223,15 @@ class FastRCNNHead(nn.Module):
 	def __init__(self, in_channels, strides, num_classes, score_thresh={cfg["TEST"]["score_thresh"]}, nms_thresh={cfg["TEST"]["nms_thresh"]}, topk_per_image=100):
 		super().__init__()
 
+		self.num_classes = num_classes
+
 		self.box_pooler = RoIPooler({cfg["POOLER"]["resolution"]}, strides, sampling_ratio={cfg["POOLER"]["sampling_ratio"]})
 		self.box_head = FastRCNNConvFCHead(in_channels, {cfg["POOLER"]["resolution"]}, num_classes, box_dim=4)
 		self.transform = BoxTransform(weights={cfg["box_transform_weights"]})\n""")
 		if not test_only:
 			res.append(f"""\
-		self.matcher = Matcher(bg_threshold={cfg["TRAIN"]["iou_thresholds"][0]}, fg_threshold={cfg["TRAIN"]["iou_thresholds"][1]}, allow_low_quality_matches=False)\n""")
+		self.proposal_matcher = Matcher(bg_threshold={cfg["TRAIN"]["iou_thresholds"][0]}, fg_threshold={cfg["TRAIN"]["iou_thresholds"][1]}, allow_low_quality_matches=False)
+		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]})\n""")
 
 		res.append(f"""\
 		self.find_top_predictions = SelectRCNNPredictions(score_thresh, nms_thresh, topk_per_image)
@@ -237,11 +241,71 @@ class FastRCNNHead(nn.Module):
 		dtype, device = proposals[0].dtype, proposals[0].device
 		batch_idx = [torch.full((len(b), 1), i, dtype=dtype, device=device) for i, b in enumerate(proposals)]
 		proposals = [torch.cat(item, dim=1) for item in zip(batch_idx, proposals)]
-		return torch.cat(proposals)  # (idx, x0, y0, x1, y1)
+		return torch.cat(proposals)  # (idx, x0, y0, x1, y1)\n""")
 
-	def forward(self, features, image_sizes, proposals{"" if test_only else ", gt_instances=None"}):
+		if not test_only:
+			res.append("""
+	@torch.no_grad()
+	def label_and_sample_proposals(self, proposals, targets):
+		\"\"\"
+		Каждому proposals подобрать наиболее подходящий target.
+		\"\"\"""")
+
+			if cfg["TRAIN"]["append_gt_to_proposal"]:
+				res.append("""
+		proposals = [torch.cat((g["boxes"], p)) for g, p in zip(targets, proposals)]\n""")
+
+			res.append("""
+		sampled_input = []
+		sampled_target = []
+		for proposals_i, targets_i in zip(proposals, targets):
+			has_gt = len(targets_i["boxes"]) > 0
+
+			if has_gt:
+				# Каждому proposals будет присвоен номер targets и метка
+				matched_idxs, matched_labels = self.proposal_matcher(targets_i["boxes"], proposals_i)
+
+				gt_classes = targets_i["classes"][matched_idxs]
+				gt_classes.masked_fill_(matched_labels == 0, self.num_classes)
+				gt_classes.masked_fill_(matched_labels == -1, -1)
+			else:
+				gt_classes = proposals_i.new_full((len(proposals_i),), self.num_classes, dtype=torch.long)
+
+			sampled_idxs = torch.cat(self.subsampler(gt_classes))  # Выбираем случайные семплы
+			sampled_input.append(proposals_i[sampled_idxs])
+
+			sampled_target_i = {"classes": gt_classes[sampled_idxs]}
+
+			if has_gt:
+				sampled_targets = matched_idxs[sampled_idxs]
+
+				for k, v in targets_i.items():  # copy all available targets
+					if k in sampled_target_i: continue
+					sampled_target_i[k] = v[sampled_targets]
+			else:
+				sampled_target_i["boxes"] = targets_i["boxes"].new_zeros((len(sampled_idxs), 4))  # TODO: может это лучше убрать?
+
+			sampled_target.append(sampled_target_i)
+
+		return sampled_input, sampled_target\n""")
+
+		res.append(f"""
+	def forward(self, features, image_sizes, proposals{"" if test_only else ", targets=None"}):
+		\"\"\"
+		Args:
+			features (list[tensor]): Список слоев с фичами. Каждый следующий слой
+				в 2 раза меньше предыдущего
+			image_sizes(list[tuple]): Реальные размеры исходных изображений
+			proposals (list[tensor]): Предсказанные обрасти для каждой картинки
+		\"\"\"\n""")
+
+		if not test_only:
+			res.append("""\
+		if targets is not None:
+			proposals, targets = self.label_and_sample_proposals(proposals, targets)\n\n""")
+
+		res.append(f"""\
 		num_prop_per_image = [len(p) for p in proposals]
-		
 		proposals = self._concat_proposals(proposals)  # (M, 5)
 		features = self.box_pooler(features, proposals)
 

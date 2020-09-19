@@ -74,6 +74,7 @@ libs_maps = {
 	"utils/pairwise_iou.py": (safe_clone, "utils/pairwise_iou.py"),
 	"utils/subsampler.py": (safe_clone, "utils/subsampler.py"),
 	"utils/box_transform.py": (safe_clone, "utils/box_transform.py"),
+	"utils/images.py": (safe_clone, "utils/images.py"),
 }
 
 import_maps = {
@@ -91,6 +92,7 @@ import_maps = {
 	"utils/pairwise_iou.py": "from .pairwise_iou import pairwise_iou",
 	"utils/subsampler.py": "from .subsampler import Subsampler",
 	"utils/box_transform.py": "from .box_transform import BoxTransform",
+	"utils/images.py": "from . import images as Images"
 }
 
 def create_with_dependencies(lib):
