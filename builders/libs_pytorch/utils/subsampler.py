@@ -3,7 +3,7 @@ import torch
 
 class Subsampler:
 	
-	def __init__(self, num_samples, positive_fraction):
+	def __init__(self, num_samples, positive_fraction, bg_label):
 		"""
 		Args:
 			num_samples (int): The total number of labels with value >= 0 to return.
@@ -14,9 +14,11 @@ class Subsampler:
 				In order words, if there are not enough positives, the sample is filled with
 				negatives. If there are also not enough negatives, then as many elements are
 				sampled as is possible.
+			bg_label (int): label index of background ("negative") class.
 		"""
 		self.num_samples = num_samples
 		self.positive_fraction = positive_fraction
+		self.bg_label = bg_label
 
 	def __call__(self, labels):
 		"""
@@ -35,8 +37,8 @@ class Subsampler:
 			pos_idx, neg_idx (Tensor):
 				1D vector of indices. The total length of both is `num_samples` or fewer.
 		"""
-		positive = (labels > 0).nonzero(as_tuple=True)[0]
-		negative = (labels == 0).nonzero(as_tuple=True)[0]
+		positive = ((labels >= 0) & (labels != self.bg_label)).nonzero(as_tuple=True)[0]
+		negative = (labels == self.bg_label).nonzero(as_tuple=True)[0]
 
 		num_pos = int(self.num_samples * self.positive_fraction)
 		# protect against not enough positive examples

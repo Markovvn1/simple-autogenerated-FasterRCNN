@@ -231,7 +231,7 @@ class FastRCNNHead(nn.Module):
 		if not test_only:
 			res.append(f"""\
 		self.proposal_matcher = Matcher(bg_threshold={cfg["TRAIN"]["iou_thresholds"][0]}, fg_threshold={cfg["TRAIN"]["iou_thresholds"][1]}, allow_low_quality_matches=False)
-		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]})\n""")
+		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]}, bg_label=num_classes)\n""")
 
 		res.append(f"""\
 		self.find_top_predictions = SelectRCNNPredictions(score_thresh, nms_thresh, topk_per_image)

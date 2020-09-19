@@ -226,7 +226,7 @@ class RPN(nn.Module):
 		else:
 			res.append(f"""
 		self.anchor_matcher = Matcher(bg_threshold={cfg["TRAIN"]["iou_thresholds"][0]}, fg_threshold={cfg["TRAIN"]["iou_thresholds"][1]}, allow_low_quality_matches=True)
-		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]})
+		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]}, bg_label=0)
 
 		selector_test = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
 		selector_train = SelectRPNProposals({cfg["TRAIN"]["pre_topk"]}, {cfg["TRAIN"]["nms_thress"]}, {cfg["TRAIN"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
