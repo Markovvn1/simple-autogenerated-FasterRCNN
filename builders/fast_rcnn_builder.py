@@ -80,6 +80,7 @@ def generate_fast_rcnn_pytorch(cfg, test_only):
 		res.append("import torch.nn as nn\n")
 		res.append("import torch.nn.functional as F\n")
 		res.append("import torchvision.ops.boxes as box_ops\n")
+		res.append(f"from fvcore.nn import {'smooth_l1_loss' if cfg['LOSS']['bbox_reg_loss_type'] == 'smooth_l1' else 'giou_loss'}\n\n")
 
 		if not test_only:
 			res.append("from fvcore.nn import weight_init\n")
@@ -234,8 +235,13 @@ class FastRCNNHead(nn.Module):
 		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]}, bg_label=num_classes)\n""")
 
 		res.append(f"""\
-		self.find_top_predictions = SelectRCNNPredictions(score_thresh, nms_thresh, topk_per_image)
+		self.find_top_predictions = SelectRCNNPredictions(score_thresh, nms_thresh, topk_per_image)\n""")
 
+		if not test_only:
+			res.append(f"""
+		self.loss_weight = {{"loss_cls": {round(cfg["LOSS"]["global_weight"] * (1-cfg["LOSS"]["box_reg_weight"]), 7)}, "loss_box_reg": {round(cfg["LOSS"]["global_weight"] * cfg["LOSS"]["box_reg_weight"], 7)}}}\n""")
+
+		res.append(f"""
 	def _concat_proposals(self, proposals):
 		\"\"\"Prepare proposals for pooling. Concatenate it with batch index\"\"\"
 		dtype, device = proposals[0].dtype, proposals[0].device
@@ -255,7 +261,7 @@ class FastRCNNHead(nn.Module):
 				res.append("""
 		proposals = [torch.cat((g["boxes"], p)) for g, p in zip(targets, proposals)]\n""")
 
-			res.append("""
+			res.append(f"""
 		sampled_input = []
 		sampled_target = []
 		for proposals_i, targets_i in zip(proposals, targets):
@@ -274,7 +280,7 @@ class FastRCNNHead(nn.Module):
 			sampled_idxs = torch.cat(self.subsampler(gt_classes))  # Выбираем случайные семплы
 			sampled_input.append(proposals_i[sampled_idxs])
 
-			sampled_target_i = {"classes": gt_classes[sampled_idxs]}
+			sampled_target_i = {{"classes": gt_classes[sampled_idxs]}}
 
 			if has_gt:
 				sampled_targets = matched_idxs[sampled_idxs]
@@ -283,11 +289,52 @@ class FastRCNNHead(nn.Module):
 					if k in sampled_target_i: continue
 					sampled_target_i[k] = v[sampled_targets]
 			else:
-				sampled_target_i["boxes"] = targets_i["boxes"].new_zeros((len(sampled_idxs), 4))  # TODO: может это лучше убрать?
+				sampled_target_i["boxes"] = targets_i["boxes"].new_zeros((len(sampled_idxs), 4))
 
 			sampled_target.append(sampled_target_i)
 
 		return sampled_input, sampled_target\n""")
+
+		res.append("""
+	def inference(self, proposals, predictions):
+		scores_logits, boxes_deltas = predictions
+
+		scores = F.softmax(scores_logits, dim=-1).split(num_prop_per_image)
+		proposals = Boxes.xyxy2xywh(proposals[:, 1:]).unsqueeze(1)
+		boxes = self.transform.apply_deltas(proposals, boxes_deltas).split(num_prop_per_image)
+		return self.find_top_predictions(scores, boxes, image_sizes)\n""")
+
+		if not test_only:
+			res.append(f"""
+	def losses(self, proposals, predictions, targets):
+		scores_logits, boxes_deltas = predictions
+
+		gt_classes = torch.cat([i["classes"] for i in targets])
+		gt_boxes = torch.cat([i["boxes"] for i in targets])
+		num_targets = len(gt_classes)
+
+		losses = {{}}
+		losses["loss_cls"] = F.cross_entropy(scores_logits, gt_classes, reduction="mean")
+
+		# select only foreground boxes
+		fg_inds = (gt_classes < self.num_classes).nonzero(as_tuple=True)[0]
+		proposals = Boxes.xyxy2xywh(proposals[fg_inds, :1])
+		gt_boxes = gt_boxes[fg_inds]
+		boxes_deltas = boxes_deltas[fg_inds, {"0" if cfg["is_agnostic"] else "gt_classes[fg_inds]"}]\n""")
+
+			if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1":
+				res.append(f"""
+		losses["loss_box_reg"] = smooth_l1_loss(
+			boxes_deltas, self.transform.get_deltas(proposals, gt_boxes),
+			beta={cfg["LOSS"]["smooth_l1_beta"]}, reduction="sum") / num_targets\n""")
+			elif cfg["LOSS"]["bbox_reg_loss_type"] == "giou":
+				res.append("""
+		losses["loss_box_reg"] = giou_loss(
+			self.transform.apply_deltas(boxes_deltas, proposals), gt_boxes,
+			reduction="sum") / num_targets\n""")
+
+			res.append("""
+		return {k: v * self.loss_weight[k] for k, v in losses.items()}\n""")
 
 		res.append(f"""
 	def forward(self, features, image_sizes, proposals{"" if test_only else ", targets=None"}):
@@ -296,7 +343,7 @@ class FastRCNNHead(nn.Module):
 			features (list[tensor]): Список слоев с фичами. Каждый следующий слой
 				в 2 раза меньше предыдущего
 			image_sizes(list[tuple]): Реальные размеры исходных изображений
-			proposals (list[tensor]): Предсказанные обрасти для каждой картинки
+			proposals (list[tensor]): Предсказанные обрасти для каждой картинки, xyxy
 		\"\"\"\n""")
 
 		if not test_only:
@@ -308,13 +355,17 @@ class FastRCNNHead(nn.Module):
 		num_prop_per_image = [len(p) for p in proposals]
 		proposals = self._concat_proposals(proposals)  # (M, 5)
 		features = self.box_pooler(features, proposals)
+		predictions = self.box_head(features)\n""")
 
-		scores, proposal_deltas = self.box_head(features)
-		scores = F.softmax(scores, dim=-1).split(num_prop_per_image)
-		proposals = Boxes.xyxy2xywh(proposals[:, 1:]).unsqueeze(1)
-		boxes = self.transform.apply_deltas(proposals, proposal_deltas).split(num_prop_per_image)
-
-		return self.find_top_predictions(scores, boxes, image_sizes){"" if test_only else ", {}"}\n""")
+		if not test_only:
+			res.append("""
+		if targets is None:
+			return self.inference(proposals, predictions), {}
+		else:
+			return proposals, self.losses(proposals, predictions, targets)\n""")
+		else:
+			res.append("""
+		return self.inference(proposals, predictions)\n""")
 
 	generate_imports()
 	if cfg["BOX_HEAD"]["name"] == "FastRCNNConvFCHead":

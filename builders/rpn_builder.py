@@ -234,7 +234,7 @@ class RPN(nn.Module):
 
 		if not test_only:
 			res.append(f"""
-		self.loss_weight = {{"rpn_loc": {round(cfg["LOSS"]["global_weight"] * cfg["LOSS"]["box_reg_weight"], 7)}, "rpn_cls": {round(cfg["LOSS"]["global_weight"] * (1-cfg["LOSS"]["box_reg_weight"]), 7)}}}\n""")
+		self.loss_weight = {{"rpn_cls": {round(cfg["LOSS"]["global_weight"] * (1-cfg["LOSS"]["box_reg_weight"]), 7)}, "rpn_loc": {round(cfg["LOSS"]["global_weight"] * cfg["LOSS"]["box_reg_weight"], 7)}}}\n""")
 
 		if not test_only:
 			pred_data = "pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "pred_proposals"
@@ -335,7 +335,7 @@ class RPN(nn.Module):
 		if not test_only:
 			res.append(f"""
 		if targets is not None:
-			losses = self.losses(anchors, targets, pred_objectness_logits, {"pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "proposals"})
+			losses = self.losses(anchors, targets, pred_objectness_logits, {pred_data})
 		else:
 			losses = {{}}\n""")
 
