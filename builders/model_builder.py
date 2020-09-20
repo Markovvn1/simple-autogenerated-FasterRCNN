@@ -85,9 +85,11 @@ class FasterRCNN(nn.Module):
 			num_classes, score_thresh, nms_thresh, topk_per_image)
 
 	def _assert_inputs(self, images{"" if test_only else ", targets"}):
-		assert len(images) > 0
-		assert isinstance(images, list) and len(images) > 0
-		assert all([i.dim() == 3 and i.size(0) == self.in_channels for i in images])\n""")
+		if isinstance(images, torch.Tensor):
+			assert images.dim() == 4 and images.size(1) == self.in_channels
+		else:
+			assert isinstance(images, list) and len(images) > 0
+			assert all([i.dim() == 3 and i.size(0) == self.in_channels for i in images])\n""")
 
 		if not test_only:
 			res.append(f"""
@@ -114,7 +116,10 @@ class FasterRCNN(nn.Module):
 		res.append(f"""
 		self._assert_inputs(images{"" if test_only else ", targets"})
 
-		images, image_sizes = Images.concat_images(images, self.backbone.size_divisibility)
+		if isinstance(images, torch.Tensor):
+			image_sizes = [images.shape[-2:]] * len(images)
+		else:
+			images, image_sizes = Images.concat_images(images, self.backbone.size_divisibility)
 		features = self.backbone(images)
 		proposals{"" if test_only else ", rpn_loss"} = self.proposal_generator(features, image_sizes{"" if test_only else ", targets"})
 		predicts{"" if test_only else ", roi_loss"} = self.roi_heads(features, image_sizes, [i[1] for i in proposals]{"" if test_only else ", targets"})

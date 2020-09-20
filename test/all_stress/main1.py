@@ -1,5 +1,7 @@
+import time
 import torch
 import torch.nn as nn
+from torch import optim
 
 from detectron2.config import get_cfg
 from detectron2 import model_zoo
@@ -22,6 +24,7 @@ cfg.MODEL.PIXEL_MEAN = [0, 0, 0]
 cfg.MODEL.PIXEL_STD = [1.0, 1.0, 1.0]
 
 net = build_model(cfg)
+optimizer = optim.Adam(net.parameters())
 
 state_dict_map = {
 	"roi_heads.box_head.cls_score.weight": "roi_heads.box_predictor.cls_score.weight",
@@ -50,7 +53,18 @@ storage_4del = EventStorage(0).__enter__()
 torch.random.manual_seed(0)
 torch.cuda.manual_seed(0)
 
-with torch.no_grad():
-	torch.save(net(data), "res1.pt")
+# with torch.no_grad():
+for i in range(3):
+	torch.cuda.synchronize()
+	t = time.time()
+	losses = net(data)
+	torch.cuda.synchronize()
+	print(time.time() - t)
+	print(losses)
+	# losses = sum(losses.values())
+	losses = losses["loss_rpn_cls"]
+	optimizer.zero_grad()
+	losses.backward()
+	optimizer.step()
 
 storage_4del.__exit__(None, None, None)

@@ -4,7 +4,7 @@ MODEL:
     RESNETS:  # TODO: freeze at
       # Параметры для генерации ResNet
       depth: 50  # Глубина сети. {18, 34, 50, 101, 152}
-      norm: "FrozenBN"  # Тип слоя нормализации для conv. {"None", "BN", "FrozenBN"}  TODO: change to BN
+      norm: "BN"  # Тип слоя нормализации для conv. {"None", "BN", "FrozenBN"}
       num_groups: 1  # Количество групп для сверточных 3x3 слоев
       width_per_group: 64  # Количество каналов в каждой группе
       stem_out_channels: 64  # Количество каналов на выходе первого слоя
@@ -43,7 +43,7 @@ MODEL:
   ROI_HEAD:
     name: "StandardROIHeads"
     StandardROIHeads:
-      is_agnostic: False  # Если False, то для каждого класса будет использоваться свой предсказатель, иначе буде использоваться общий  TODO: Проверить
+      is_agnostic: True  # Если False, то для каждого класса будет использоваться свой предсказатель, иначе буде использоваться общий  TODO: Проверить
       box_transform_weights: [10.0, 10.0, 5.0, 5.0]  # Коэффициенты на которые будут умножаться значения локализации
       BOX_HEAD:
         name: "FastRCNNConvFCHead"
@@ -58,8 +58,8 @@ MODEL:
       LOSS:
         global_weight: 2.0  # Вклад ошибки ROI_HEAD модуля в общую ошибку сети
         box_reg_weight: 0.5  # Вклад ошибки локализации в ошибку ROI_HEAD модуля
-        bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"} TODO: change to giou
-        smooth_l1_beta: 0.0  # Используется только если bbox_reg_loss_type == "smooth_l1" TODO: change to 1
+        bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
+        smooth_l1_beta: 1.0  # Используется только если bbox_reg_loss_type == "smooth_l1"
       TRAIN:
         batch_size_per_image: 512  # Количество изображений используемых для обучения ROI_HEAD
         positive_fraction: 0.25  # Процент положительных изображений в минибатче
