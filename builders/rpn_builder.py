@@ -335,7 +335,7 @@ class RPN(nn.Module):
 		if not test_only:
 			res.append(f"""
 		if targets is not None:
-			losses = self.losses(anchors, targets, pred_objectness_logits, {pred_data})
+			losses = self.losses(anchors, targets, pred_objectness_logits, {"pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "proposals"})
 		else:
 			losses = {{}}\n""")
 

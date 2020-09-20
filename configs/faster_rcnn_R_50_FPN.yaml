@@ -58,7 +58,7 @@ MODEL:
       LOSS:
         global_weight: 2.0  # Вклад ошибки ROI_HEAD модуля в общую ошибку сети
         box_reg_weight: 0.5  # Вклад ошибки локализации в ошибку ROI_HEAD модуля
-        bbox_reg_loss_type: "smooth_l1"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"} TODO: change to giou
+        bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"} TODO: change to giou
         smooth_l1_beta: 0.0  # Используется только если bbox_reg_loss_type == "smooth_l1" TODO: change to 1
       TRAIN:
         batch_size_per_image: 512  # Количество изображений используемых для обучения ROI_HEAD

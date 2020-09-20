@@ -239,7 +239,7 @@ class FastRCNNHead(nn.Module):
 
 		if not test_only:
 			res.append(f"""
-		self.loss_weight = {{"loss_cls": {round(cfg["LOSS"]["global_weight"] * (1-cfg["LOSS"]["box_reg_weight"]), 7)}, "loss_box_reg": {round(cfg["LOSS"]["global_weight"] * cfg["LOSS"]["box_reg_weight"], 7)}}}\n""")
+		self.loss_weight = {{"roi_cls": {round(cfg["LOSS"]["global_weight"] * (1-cfg["LOSS"]["box_reg_weight"]), 7)}, "roi_loc": {round(cfg["LOSS"]["global_weight"] * cfg["LOSS"]["box_reg_weight"], 7)}}}\n""")
 
 		res.append(f"""
 	def _concat_proposals(self, proposals):
@@ -296,7 +296,7 @@ class FastRCNNHead(nn.Module):
 		return sampled_input, sampled_target\n""")
 
 		res.append("""
-	def inference(self, proposals, predictions):
+	def inference(self, proposals, predictions, image_sizes, num_prop_per_image):
 		scores_logits, boxes_deltas = predictions
 
 		scores = F.softmax(scores_logits, dim=-1).split(num_prop_per_image)
@@ -314,23 +314,23 @@ class FastRCNNHead(nn.Module):
 		num_targets = len(gt_classes)
 
 		losses = {{}}
-		losses["loss_cls"] = F.cross_entropy(scores_logits, gt_classes, reduction="mean")
+		losses["roi_cls"] = F.cross_entropy(scores_logits, gt_classes, reduction="mean")
 
 		# select only foreground boxes
 		fg_inds = (gt_classes < self.num_classes).nonzero(as_tuple=True)[0]
-		proposals = Boxes.xyxy2xywh(proposals[fg_inds, :1])
+		proposals = Boxes.xyxy2xywh(proposals[fg_inds, 1:])
 		gt_boxes = gt_boxes[fg_inds]
 		boxes_deltas = boxes_deltas[fg_inds, {"0" if cfg["is_agnostic"] else "gt_classes[fg_inds]"}]\n""")
 
 			if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1":
 				res.append(f"""
-		losses["loss_box_reg"] = smooth_l1_loss(
+		losses["roi_loc"] = smooth_l1_loss(
 			boxes_deltas, self.transform.get_deltas(proposals, gt_boxes),
 			beta={cfg["LOSS"]["smooth_l1_beta"]}, reduction="sum") / num_targets\n""")
 			elif cfg["LOSS"]["bbox_reg_loss_type"] == "giou":
 				res.append("""
-		losses["loss_box_reg"] = giou_loss(
-			self.transform.apply_deltas(boxes_deltas, proposals), gt_boxes,
+		losses["roi_loc"] = giou_loss(
+			self.transform.apply_deltas(proposals, boxes_deltas), gt_boxes,
 			reduction="sum") / num_targets\n""")
 
 			res.append("""
@@ -360,7 +360,7 @@ class FastRCNNHead(nn.Module):
 		if not test_only:
 			res.append("""
 		if targets is None:
-			return self.inference(proposals, predictions), {}
+			return self.inference(proposals, predictions, image_sizes, num_prop_per_image), {}
 		else:
 			return proposals, self.losses(proposals, predictions, targets)\n""")
 		else:
