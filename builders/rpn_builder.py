@@ -190,11 +190,12 @@ class SelectRPNProposals:
 			if not keep.all():""")
 		if not test_only:
 			res.append("""
-				if self.training:
-					raise FloatingPointError("Predicted boxes or scores contain Inf/NaN. Training has diverged.")""")
+				raise FloatingPointError("Predicted boxes or scores contain Inf/NaN. Training has diverged.")\n""")
+		else:
+			res.append("""
+				scores_i, proposals_i, levels_i = scores_i[keep], proposals_i[keep], levels_i[keep]\n""")
+
 		res.append("""
-				scores_i, proposals_i, levels_i = scores_i[keep], proposals_i[keep], levels_i[keep]
-			
 			Boxes.clamp_(proposals_i, image_sizes[i])
 
 			# filter empty boxes

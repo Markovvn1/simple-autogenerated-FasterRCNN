@@ -43,7 +43,7 @@ MODEL:
   ROI_HEAD:
     name: "StandardROIHeads"
     StandardROIHeads:
-      is_agnostic: True  # Если False, то для каждого класса будет использоваться свой предсказатель, иначе буде использоваться общий  TODO: Проверить
+      is_agnostic: False  # Если False, то для каждого класса будет использоваться свой предсказатель, иначе буде использоваться общий
       box_transform_weights: [10.0, 10.0, 5.0, 5.0]  # Коэффициенты на которые будут умножаться значения локализации
       BOX_HEAD:
         name: "FastRCNNConvFCHead"
