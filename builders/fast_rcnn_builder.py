@@ -83,10 +83,10 @@ def generate_fast_rcnn_pytorch(cfg, test_only):
 		res.append(f"from fvcore.nn import {'smooth_l1_loss' if cfg['LOSS']['bbox_reg_loss_type'] == 'smooth_l1' else 'giou_loss'}\n\n")
 
 		if not test_only:
-			res.append("from fvcore.nn import weight_init\n")
+			res.append("from fvcore.nn import weight_init\n\n")
 		res.append
 
-		res.append("\nfrom ..layers import RoIPooler")
+		res.append("from ..layers import RoIPooler")
 		libs.add("layers/pooler.py")
 
 		if not test_only:
@@ -98,13 +98,13 @@ def generate_fast_rcnn_pytorch(cfg, test_only):
 				res.append(", FrozenBatchNorm2d")
 				libs.add("layers/freeze_batchnorm.py")
 
-		res.append("\nfrom ..utils import Boxes")
+		res.append("\nfrom ..utils import Boxes, BoxTransform")
 		libs.add("utils/boxes.py")
+		libs.add("utils/box_transform.py")
 
 		if not test_only:
-			res.append(", Matcher, BoxTransform, Subsampler")
+			res.append(", Matcher, Subsampler")
 			libs.add("utils/matcher.py")
-			libs.add("utils/box_transform.py")
 			libs.add("utils/subsampler.py")
 
 		res.append("\n\n")
@@ -214,8 +214,8 @@ class SelectRCNNPredictions:
 
 		return {{"pred_boxes": boxes[keep], "scores": scores[keep], "pred_classes": filter_inds[1][keep]}}
 
-	def __call__(self, scores, boxes, image_sizes):
-		return [self._process_image(*items) for items in zip(scores, boxes, image_sizes)]\n\n""")
+	def __call__(self, *params):
+		return [self._process_image(*items) for items in zip(*params)]\n\n""")
 
 	def generate_FastRCNNHead():
 		res.append(f"""
@@ -365,7 +365,7 @@ class FastRCNNHead(nn.Module):
 			return proposals, self.losses(proposals, predictions, targets)\n""")
 		else:
 			res.append("""
-		return self.inference(proposals, predictions)\n""")
+		return self.inference(proposals, predictions, image_sizes, num_prop_per_image)\n""")
 
 	generate_imports()
 	if cfg["BOX_HEAD"]["name"] == "FastRCNNConvFCHead":
