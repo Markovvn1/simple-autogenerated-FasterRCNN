@@ -1,0 +1,129 @@
+body {
+	margin: 0.5em 1em 0;
+}
+
+body * {
+	margin: 0;
+}
+
+.header {
+	display: block;
+	margin-bottom: 1em;
+}
+
+.header h1 {
+	display: inline-block;
+	margin-right: 0.2em;
+}
+
+.header select {
+	font-size: 1.5em;
+}
+
+.panel {
+	display: flex;
+}
+
+.column_panel {
+	float: left;
+	height: 100%;
+	margin-right: auto;
+}
+
+.row_panel {
+	display: block;
+	padding-bottom: 2em;
+}
+
+.panel_name {
+	display: inline-block;
+	padding-bottom: 0.5em;
+}
+
+.panel_content {
+	display: block;
+	padding-left: 1em;
+	line-height: 1.5em;
+}
+
+.input_array input {
+	margin-left: -1px;
+}
+
+.input_array {
+	display: block;
+	padding-left: 1em;
+}
+
+.input_inline_array input {
+	margin-left: -1px;
+}
+
+.input_table td {
+	padding: 0;
+}
+
+.input_table input {
+	margin-left: -1px;
+}
+
+.input_table {
+	margin-left: 1em;
+	text-align: center;
+	border-collapse: collapse;
+	line-height: 1em;
+}
+
+.hidden {
+	display: none;
+}
+
+.pos_int {
+	width: 3.7em;
+}
+
+.pos_short {
+	width: 2.7em;
+}
+
+.pos_float {
+	width: 4em;
+}
+
+.pos_sfloat {
+	width: 3em;
+}
+
+.ms_horizontal {
+	overflow: hidden;
+}
+
+.ms_horizontal option {
+	display: inline-block;
+	padding: 0 0.2em;
+}
+
+.footer-wrapper {
+	display: block;
+	height: 3em;
+}
+
+.footer {
+	display: block;
+	position: fixed;
+	right: 0;
+	left: 0;
+	bottom: 0;
+	padding: 0.8em 1em;
+	background: cadetblue;
+}
+
+.footer * {
+	display: inline-block;
+	float: right;
+	margin-left: 0.3em;
+}
+
+.footer select {
+	margin-right: 1em;
+}
