@@ -4,7 +4,7 @@ from pkg.module_builder import ModuleBuilderBase
 class ModuleBuilder(ModuleBuilderBase):
 
 	def __init__(self):
-		super().__init__({"subsampled.Subsampler"})
+		super().__init__({"subsampler.Subsampler"})
 
 	def _assert_cfg(self, module, cfg):
 		assert not cfg

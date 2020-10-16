@@ -1,116 +1,95 @@
-import os
+from pkg.module_builder import ModuleBuilderBase
 
-FOLDER = "parts"
+# TODO: Проверить что при создании только StandardRPNHead не создались боксы
+class ModuleBuilder(ModuleBuilderBase):
 
+	def __init__(self):
+		super().__init__({"rpn.StandardRPNHead", "rpn.SelectRPNProposals", "rpn.RPN"})
 
-def build_rpn(cfg, test_only=False, engine="pytorch"):
-	os.makedirs(FOLDER, exist_ok=True)
+	def _assert_cfg(self, module, cfg):
+		if module in ["rpn.StandardRPNHead", "rpn.SelectRPNProposals"]:
+			assert not cfg
+			return
 
-	code, libs = generate_rpn(cfg, test_only, engine)
+		is_pos_num = lambda x: isinstance(x, int) and x > 0
+		is_procent = lambda x: x >= 0 and x <= 1
 
-	with open(os.path.join(FOLDER, "rpn.py"), "w") as f:
-		f.write(code)
+		assert isinstance(cfg["TRAIN"]["iou_thresholds"], list) and len(cfg["TRAIN"]["iou_thresholds"]) == 2
+		assert is_procent(cfg["TRAIN"]["iou_thresholds"][0]) and is_procent(cfg["TRAIN"]["iou_thresholds"][1])
+		assert cfg["TRAIN"]["iou_thresholds"][0] < cfg["TRAIN"]["iou_thresholds"][1]
 
-	return libs
+		ratios = cfg["ANCHOR_GENERATOR"]["ratios"]
+		sizes = cfg["ANCHOR_GENERATOR"]["sizes"]
+		assert isinstance(ratios, list) and len(ratios) > 0
+		assert isinstance(sizes, list) and len(sizes) > 0
+		if isinstance(ratios[0], list):
+			assert len(ratios[0]) > 0
+			assert len(set(len(i) for i in ratios)) == 1
+		if isinstance(sizes[0], list):
+			assert len(sizes[0]) > 0
+			assert len(set(len(i) for i in sizes)) == 1
 
+		assert cfg["LOSS"]["bbox_reg_loss_type"] in ["smooth_l1", "giou"]
+		assert cfg["LOSS"]["global_weight"] >= 0
+		assert is_procent(cfg["LOSS"]["box_reg_weight"])
+		assert cfg["LOSS"]["smooth_l1_beta"] >= 0
 
-def generate_rpn(cfg, test_only=False, engine="pytorch"):
-	"""
-	Генерирует код для RPN используя параметры из cfg.
+		assert is_pos_num(cfg["TRAIN"]["pre_topk"])
+		assert is_procent(cfg["TRAIN"]["nms_thress"])
+		assert is_pos_num(cfg["TRAIN"]["post_topk"])
+		assert is_pos_num(cfg["TRAIN"]["batch_size_per_image"])
+		assert is_procent(cfg["TRAIN"]["positive_fraction"])
 
-	Args:
-		cfg (Dict[String, Any]): Список параметров конфигурации RPN:
-			iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
-			min_box_size: 0
-			ANCHOR_GENERATOR:  # Параметры генератора anchors
-				ratios: [0.5, 1.0, 2.0]
-				sizes: [[32], [64], [128], [256], [512]]
-			LOSS:
-				global_weight: 2.0  # Вклад ошибки RPN модуля в общую ошибку сети
-				box_reg_weight: 0.5  # Вклад ошибки локализации в ошибку RPN модуля
-				bbox_reg_loss_type: "giou"  # Тип ошибки для уточнения смещения. {"smooth_l1", "giou"}
-				smooth_l1_beta: 1.0  # Используется только если bbox_reg_loss_type == "smooth_l1"
-			TRAIN:  # Парамеры для обучения
-				pre_topk: 2000
-				nms_thress: 0.7
-				post_topk: 1000
-				batch_size_per_image: 256  # Количество изображений используемых для обучения RPN
-				positive_fraction: 0.5
-			TEST:  # Параметры для тестирования
-				pre_topk: 1000
-				nms_thress: 0.7
-				post_topk: 1000
+		assert is_pos_num(cfg["TEST"]["pre_topk"])
+		assert is_procent(cfg["TEST"]["nms_thress"])
+		assert is_pos_num(cfg["TEST"]["post_topk"])
 
-		test_only (Bool): Нужно ли генерировать код только для тестирования, или он
-			будет использоваться и для обучения
+	def _dependencies(self, module, global_params, cfg):
+		if module == "rpn.StandardRPNHead":
+			return {}
+		if module == "rpn.SelectRPNProposals":
+			return {"boxes.clamp_": None, "boxes.nonempty": None}
+		if module == "rpn.RPN":
+			res = {"rpn.StandardRPNHead": None, "rpn.SelectRPNProposals": None,
+				"box_transform.BoxTransform": None, "anchors.MultiAnchors": None}
+			if global_params["mode"] == "train":
+				res["matcher.Matcher"] = None
+				res["subsampler.Subsampler"] = None
+				res["boxes.xywh2xyxy"] = None
+			return res
 
-		engine (String): Движок для которого будет сгенерирован код. Возможные значения:
-			"pytorch"
-	"""
+	def _init_file(self, dep):
+		if "rpn.RPN" in dep: return "from .rpn import RPN"
+		return None
 
-	assert isinstance(test_only, bool)
-	assert isinstance(engine, str)
+	def _generate(self, global_params, dep, childs):
+		res = []
+		res.append("""\
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.ops.boxes as box_ops\n""")
+		if global_params["mode"] == "train" and "rpn.RPN" in dep:
+			res.append(f"from fvcore.nn import {dep['rpn.RPN']['LOSS']['bbox_reg_loss_type']}_loss\n")
 
-	is_pos_num = lambda x: isinstance(x, int) and x > 0
-	is_procent = lambda x: x >= 0 and x <= 1
+		utils = {"box_transform.BoxTransform", "anchors.MultiAnchors", "matcher.Matcher", "subsampler.Subsampler"} & childs.keys()
+		if [1 for i in childs.keys() if i[:i.find(".")] == "boxes"]: utils.add("boxes.Boxes")
+		if utils:
+			res.append("\nfrom ..utils import " + ", ".join([i[i.find(".")+1:] for i in utils]) + "\n")
 
-	assert isinstance(cfg["TRAIN"]["iou_thresholds"], list) and len(cfg["TRAIN"]["iou_thresholds"]) == 2
-	assert is_procent(cfg["TRAIN"]["iou_thresholds"][0]) and is_procent(cfg["TRAIN"]["iou_thresholds"][1])
+		if "rpn.StandardRPNHead" in dep:
+			res.extend(_generate_StandardRPNHead(global_params, dep["rpn.StandardRPNHead"]))
+		if "rpn.SelectRPNProposals" in dep:
+			res.extend(_generate_SelectRPNProposals(global_params, dep["rpn.SelectRPNProposals"]))
+		if "rpn.RPN" in dep:
+			res.extend(_generate_RPN(global_params, dep["rpn.RPN"]))
 
-	ratios = cfg["ANCHOR_GENERATOR"]["ratios"]
-	sizes = cfg["ANCHOR_GENERATOR"]["sizes"]
-	assert isinstance(ratios, list) and len(ratios) > 0
-	assert isinstance(sizes, list) and len(sizes) > 0
-	if isinstance(ratios[0], list):
-		assert len(ratios[0]) > 0
-		assert len(set(len(i) for i in ratios)) == 1
-	if isinstance(sizes[0], list):
-		assert len(sizes[0]) > 0
-		assert len(set(len(i) for i in sizes)) == 1
-
-	assert cfg["LOSS"]["bbox_reg_loss_type"] in ["smooth_l1", "giou"]
-	assert cfg["LOSS"]["global_weight"] >= 0
-	assert is_procent(cfg["LOSS"]["box_reg_weight"])
-	assert cfg["LOSS"]["smooth_l1_beta"] >= 0
-
-	assert is_pos_num(cfg["TRAIN"]["pre_topk"])
-	assert is_procent(cfg["TRAIN"]["nms_thress"])
-	assert is_pos_num(cfg["TRAIN"]["post_topk"])
-	assert is_pos_num(cfg["TRAIN"]["batch_size_per_image"])
-	assert is_procent(cfg["TRAIN"]["positive_fraction"])
-
-	assert is_pos_num(cfg["TEST"]["pre_topk"])
-	assert is_procent(cfg["TEST"]["nms_thress"])
-	assert is_pos_num(cfg["TEST"]["post_topk"])
-
-	if engine == "pytorch":
-		return generate_rpn_pytorch(cfg, test_only)
-	
-	raise NotImplementedError(f"Unimplemented engine {engine}")
+		return "".join(res)
 
 
-def generate_rpn_pytorch(cfg, test_only):
+def _generate_StandardRPNHead(global_params, cfg):
 	res = []
-	libs = set()
-	res.append("###  Automatically-generated file  ###\n\n")
-
-	def generate_imports():
-		res.append("import torch\n")
-		res.append("import torch.nn as nn\n")
-		res.append("import torch.nn.functional as F\n")
-		res.append("import torchvision.ops.boxes as box_ops\n")
-		res.append(f"from fvcore.nn import {'smooth_l1_loss' if cfg['LOSS']['bbox_reg_loss_type'] == 'smooth_l1' else 'giou_loss'}\n\n")
-
-		res.append(f"from ..utils import Boxes, Anchors, BoxTransform, MultiAnchors{'' if test_only else ', Matcher, Subsampler'}\n\n")
-		libs.add("utils/boxes.py")
-		libs.add("utils/anchors.py")
-		libs.add("utils/box_transform.py")
-		if not test_only:
-			libs.add("utils/matcher.py")
-			libs.add("utils/subsampler.py")
-
-	def generate_StandardRPNHead():
-		res.append("""
+	res.append("""\n
 class StandardRPNHead(nn.Module):
 
 	\"\"\"
@@ -133,22 +112,25 @@ class StandardRPNHead(nn.Module):
 		# (N, A*D, Hi, Wi) -> (N, A, D, Hi, Wi) -> (N, Hi, Wi, A, D) -> (N, Hi*Wi*A, D)
 		self.deltas_reshape = lambda x: x.view(-1, num_anchors, box_dim, x.size(-2), x.size(-1)).permute(0, 3, 4, 1, 2).flatten(1, -2)\n""")
 
-		if not test_only:
-			res.append("""
+	if global_params["mode"] == "train":
+		res.append("""
 		for l in [self.conv, self.objectness_logits, self.anchor_deltas]:
 			nn.init.normal_(l.weight, std=0.01)
 			nn.init.constant_(l.bias, 0)\n""")
 
-		res.append("""
+	res.append("""
 	def forward(self, features):
 		for x in features: assert (x.dim() == 4) and (x.size(1) == self.in_channels)
 
 		features = [F.relu(self.conv(x)) for x in features]
 		return [self.logits_reshape(self.objectness_logits(x)) for x in features],\\
-			[self.deltas_reshape(self.anchor_deltas(x)) for x in features]\n\n""")
+			[self.deltas_reshape(self.anchor_deltas(x)) for x in features]\n""")
+	return res
 
-	def generate_SelectRPNProposals():
-		res.append("""
+
+def _generate_SelectRPNProposals(global_params, cfg):
+	res = []
+	res.append("""\n
 class SelectRPNProposals:
 
 	def __init__(self, pre_topk, nms_thresh, post_topk, min_box_size):
@@ -158,7 +140,7 @@ class SelectRPNProposals:
 		self.post_topk = post_topk
 		self.min_box_size = min_box_size\n""")
 
-		res.append("""
+	res.append("""
 	def __call__(self, logits, proposals, image_sizes):
 		device = proposals[0].device
 		batch_idx = torch.arange(len(proposals[0]), device=device).unsqueeze(-1)
@@ -188,14 +170,14 @@ class SelectRPNProposals:
 
 			keep = torch.isfinite(proposals_i).all(dim=1) & torch.isfinite(scores_i)
 			if not keep.all():""")
-		if not test_only:
-			res.append("""
+	if global_params["mode"] == "train":
+		res.append("""
 				raise FloatingPointError("Predicted boxes or scores contain Inf/NaN. Training has diverged.")\n""")
-		else:
-			res.append("""
+	else:
+		res.append("""
 				scores_i, proposals_i, levels_i = scores_i[keep], proposals_i[keep], levels_i[keep]\n""")
 
-		res.append("""
+	res.append("""
 			Boxes.clamp_(proposals_i, image_sizes[i])
 
 			# filter empty boxes
@@ -207,11 +189,14 @@ class SelectRPNProposals:
 			keep = keep[:self.post_topk]  # keep is already sorted
 			res.append((scores_i[keep], proposals_i[keep]))
 
-		return res\n\n""")
+		return res\n""")
+	return res
 
 
-	def generate_RPN():
-		res.append(f"""
+def _generate_RPN(global_params, cfg):
+	mode = global_params["mode"]
+	res = []
+	res.append(f"""\n
 class RPN(nn.Module):
 
 	def __init__(self, in_channels, strides):
@@ -221,11 +206,11 @@ class RPN(nn.Module):
 		self.transform = BoxTransform(weights={cfg["box_transform_weights"]})
 		assert len(set(self.anchor_generator.num_anchors)) == 1
 		self.rpn_head = StandardRPNHead(in_channels, self.anchor_generator.num_anchors[0], box_dim=4)""")
-		if test_only:
-			res.append(f"""
+	if mode == "test":
+		res.append(f"""
 		self.find_top_proposals = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})\n""")
-		else:
-			res.append(f"""
+	else:
+		res.append(f"""
 		self.anchor_matcher = Matcher(bg_threshold={cfg["TRAIN"]["iou_thresholds"][0]}, fg_threshold={cfg["TRAIN"]["iou_thresholds"][1]}, allow_low_quality_matches=True)
 		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]}, bg_label=0)
 
@@ -233,14 +218,14 @@ class RPN(nn.Module):
 		selector_train = SelectRPNProposals({cfg["TRAIN"]["pre_topk"]}, {cfg["TRAIN"]["nms_thress"]}, {cfg["TRAIN"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
 		self.find_top_proposals = lambda *args: (selector_train if self.training else selector_test)(*args)\n""")
 
-		if not test_only:
-			res.append(f"""
+	if mode == "train":
+		res.append(f"""
 		self.loss_weight = {{"rpn_cls": {round(cfg["LOSS"]["global_weight"] * (1-cfg["LOSS"]["box_reg_weight"]), 7)}, "rpn_loc": {round(cfg["LOSS"]["global_weight"] * cfg["LOSS"]["box_reg_weight"], 7)}}}\n""")
 
-		if not test_only:
-			pred_data = "pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "pred_proposals"
+	if mode == "train":
+		pred_data = "pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "pred_proposals"
 
-			res.append(f"""
+		res.append(f"""
 	@torch.no_grad()
 	def label_and_sample_anchors(self, anchors, targets):
 		\"\"\"
@@ -277,21 +262,21 @@ class RPN(nn.Module):
 
 		losses = {{}}\n""")
 
-			if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1":
-				res.append(f"""
+		if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1":
+			res.append(f"""
 		gt_anchor_deltas = self.transform.get_deltas(anchors, gt_boxes) # (N, sum(Hi*Wi*Ai), 4 or 5)
 		losses["rpn_loc"] = smooth_l1_loss(
 			{pred_data}[pos_mask], gt_anchor_deltas[pos_mask],
 			beta={cfg["LOSS"]["smooth_l1_beta"]}, reduction="sum",
 		)\n""")
-			elif cfg["LOSS"]["bbox_reg_loss_type"] == "giou":
-				res.append(f"""
+		elif cfg["LOSS"]["bbox_reg_loss_type"] == "giou":
+			res.append(f"""
 		losses["rpn_loc"] = giou_loss(
 			{pred_data}[pos_mask], gt_boxes[pos_mask],
 			reduction="sum",
 		)\n""")
 
-			res.append("""
+		res.append("""
 		valid_mask = gt_labels >= 0
 		losses["rpn_cls"] = F.binary_cross_entropy_with_logits(
 			pred_objectness_logits[valid_mask],
@@ -302,52 +287,45 @@ class RPN(nn.Module):
 		normalizer = self.subsampler.num_samples * len(gt_labels)
 		return {k: v * self.loss_weight[k] / normalizer for k, v in losses.items()}\n""")
 
-		res.append(f"""
-	def forward(self, features, image_sizes{"" if test_only else ", targets=None"}):
+	res.append(f"""
+	def forward(self, features, image_sizes{"" if mode == "test" else ", targets=None"}):
 		\"\"\"
 		Args:
 			features (list[Tensor]): input features
 			image_sizes (list[int, int]): sizes of original inputs""")
 
-		if not test_only:
-			res.append("""
+	if mode == "train":
+		res.append("""
 			targets (list[Instances], optional): a length `N` list of `Instances`s.
 				Each `Instances` stores ground-truth instances for the corresponding image.""")
 
-		res.append("""\n
+	res.append("""\n
 		Returns:
 			proposals: list[Tensor]: list of proposal boxes of shape [Ai, 4]""")
 
-		if not test_only:
-			res.append("""
-			loss: dict[Tensor] or None""")
+	if mode == "train":
 		res.append("""
+			loss: dict[Tensor] or None""")
+	res.append("""
 		\"\"\"""")
 
-		res.append("""
+	res.append("""
 		pred_objectness_logits, pred_anchor_deltas = self.rpn_head(features)
 		anchors = self.anchor_generator([f.shape[-2:] for f in features])
 		del features
 
 		# decode proposals
-		proposals = [self.transform.apply_deltas(a, d) for a, d in zip(anchors, pred_anchor_deltas)]
-		""")
+		proposals = [self.transform.apply_deltas(a, d) for a, d in zip(anchors, pred_anchor_deltas)]\n""")
 
-		if not test_only:
-			res.append(f"""
+	if mode == "train":
+		res.append(f"""
 		if targets is not None:
 			losses = self.losses(anchors, targets, pred_objectness_logits, {"pred_anchor_deltas" if cfg["LOSS"]["bbox_reg_loss_type"] == "smooth_l1" else "proposals"})
 		else:
 			losses = {{}}\n""")
 
-		res.append(f"""
+	res.append(f"""
 		# choose the best proposals
 		proposals = self.find_top_proposals(pred_objectness_logits, proposals, image_sizes)
-		return proposals{"" if test_only else ", losses"}""")
-
-	generate_imports()
-	generate_StandardRPNHead()
-	generate_SelectRPNProposals()
-	generate_RPN()
-
-	return "".join(res), libs
+		return proposals{"" if mode == "test" else ", losses"}\n""")
+	return res

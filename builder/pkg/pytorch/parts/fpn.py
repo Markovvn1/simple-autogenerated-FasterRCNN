@@ -25,7 +25,7 @@ class ModuleBuilder(ModuleBuilderBase):
 		return res
 
 	def _init_file(self, dep):
-		if "fpn.FPN" in dep: return "from .fpn import FPN\n"
+		if "fpn.FPN" in dep: return "from .fpn import FPN"
 		return None
 
 	def _generate(self, global_params, dep, childs):

@@ -77,9 +77,9 @@ class Builder:
 		# create __init__.py files
 		for dir_name, items in self.builders_per_folder.items():
 			content = [i.init_file() for i in items]
-			content = "".join([i for i in content if i])
+			content = [i for i in content if i]
 			if not content: continue
 			with open(os.path.join(dir_name, "__init__.py"), "w") as f:
-				f.write(content)
+				f.write("\n".join(content) + "\n")
 
 		os.chdir(last_dir)  # go to saved dir

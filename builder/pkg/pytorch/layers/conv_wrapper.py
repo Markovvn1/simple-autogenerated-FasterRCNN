@@ -13,7 +13,7 @@ class ModuleBuilder(ModuleBuilderBase):
 		return {}
 
 	def _init_file(self, dep):
-		if "conv_wrapper.Conv2d" in dep: return "from .conv_wrapper import Conv2d\n"
+		if "conv_wrapper.Conv2d" in dep: return "from .conv_wrapper import Conv2d"
 		return None
 
 	def _generate(self, global_params, dep, childs):
