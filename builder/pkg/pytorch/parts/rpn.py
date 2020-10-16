@@ -35,13 +35,13 @@ class ModuleBuilder(ModuleBuilderBase):
 		assert cfg["LOSS"]["smooth_l1_beta"] >= 0
 
 		assert is_pos_num(cfg["TRAIN"]["pre_topk"])
-		assert is_procent(cfg["TRAIN"]["nms_thress"])
+		assert is_procent(cfg["TRAIN"]["nms_thresh"])
 		assert is_pos_num(cfg["TRAIN"]["post_topk"])
 		assert is_pos_num(cfg["TRAIN"]["batch_size_per_image"])
 		assert is_procent(cfg["TRAIN"]["positive_fraction"])
 
 		assert is_pos_num(cfg["TEST"]["pre_topk"])
-		assert is_procent(cfg["TEST"]["nms_thress"])
+		assert is_procent(cfg["TEST"]["nms_thresh"])
 		assert is_pos_num(cfg["TEST"]["post_topk"])
 
 	def _dependencies(self, module, global_params, cfg):
@@ -211,14 +211,14 @@ class RPN(nn.Module):
 		self.rpn_head = StandardRPNHead(in_channels, self.anchor_generator.num_anchors[0], box_dim=4)""")
 	if mode == "test":
 		res.append(f"""
-		self.find_top_proposals = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})\n""")
+		self.find_top_proposals = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thresh"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})\n""")
 	else:
 		res.append(f"""
 		self.anchor_matcher = Matcher(bg_threshold={cfg["TRAIN"]["iou_thresholds"][0]}, fg_threshold={cfg["TRAIN"]["iou_thresholds"][1]}, allow_low_quality_matches=True)
 		self.subsampler = Subsampler(num_samples={cfg["TRAIN"]["batch_size_per_image"]}, positive_fraction={cfg["TRAIN"]["positive_fraction"]}, bg_label=0)
 
-		selector_test = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thress"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
-		selector_train = SelectRPNProposals({cfg["TRAIN"]["pre_topk"]}, {cfg["TRAIN"]["nms_thress"]}, {cfg["TRAIN"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
+		selector_test = SelectRPNProposals({cfg["TEST"]["pre_topk"]}, {cfg["TEST"]["nms_thresh"]}, {cfg["TEST"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
+		selector_train = SelectRPNProposals({cfg["TRAIN"]["pre_topk"]}, {cfg["TRAIN"]["nms_thresh"]}, {cfg["TRAIN"]["post_topk"]}, min_box_size={cfg["min_box_size"]})
 		self.find_top_proposals = lambda *args: (selector_train if self.training else selector_test)(*args)\n""")
 
 	if mode == "train":

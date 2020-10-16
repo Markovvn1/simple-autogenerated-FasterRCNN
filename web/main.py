@@ -4,6 +4,8 @@ import sys
 import json
 import random
 
+from builder import build_model  # Переместите ../builder в web
+
 def get_input():
 	res = json.loads("".join(sys.argv[1:]))
 
@@ -28,18 +30,6 @@ def get_input():
 	return res
 
 
-def yaml_dump(x, tab=""):
-	if not isinstance(x, dict): return tab + str(x)
-	res = []
-	ntab = tab + "  "
-	for k, v in x.items():
-		if isinstance(v, dict):
-			res.append(tab + str(k) + ":\n" + yaml_dump(v, ntab) + "\n")
-		else:
-			res.append(tab + str(k) + ": " + (f"\"{v}\"" if isinstance(v, str) else str(v)) + "\n")
-	return "".join(res)[:-1]
-
-
 def choose_dir(temp_dir):
 	while True:
 		dir_name = os.path.join(temp_dir, str(random.randint(0, 999999)))
@@ -60,14 +50,18 @@ try:
 	cfg = {"name": model_type, model_type: cfg}
 
 	base_folder = choose_dir("workdir/res")
-	folder = lambda x: os.path.join(base_folder, x)
-	os.mkdir(folder("build"))
+	output_dir = os.path.join(base_folder, "build")
 
-	# save config
-	with open(folder("build/config.yaml"), "w") as f:
-		f.write(yaml_dump(cfg))
+	# build net
+	build_model(cfg, mode, output_dir, engine)
 
 	print(os.path.abspath(base_folder), end="")
 
 except Exception as e:
-	print(repr(e))
+	tb = e.__traceback__
+	while tb.tb_next is not None: tb = tb.tb_next
+
+	fname = os.path.split(tb.tb_frame.f_code.co_filename)
+	fname = os.path.join(os.path.basename(fname[0]), fname[1])
+	# name = tb.tb_frame.f_code.co_name  # function name
+	print(f"{fname}, line {tb.tb_lineno}: {repr(e)}")

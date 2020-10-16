@@ -18,19 +18,19 @@ class ModuleBuilder(ModuleBuilderBase):
 			assert isinstance(cfg["is_agnostic"], bool)
 		elif module == "fast_rcnn.FastRCNNHead":
 			is_pos_num = lambda x: isinstance(x, int) and x > 0
-			is_procent = lambda x: isinstance(x, float) and x >= 0 and x <= 1
+			is_procent = lambda x: isinstance(x, (int, float)) and x >= 0 and x <= 1
 
 			assert isinstance(cfg["is_agnostic"], bool)
 			
 			assert isinstance(cfg["box_transform_weights"], (list, tuple)) and len(cfg["box_transform_weights"]) == 4
-			assert all([isinstance(i, float) for i in cfg["box_transform_weights"]])
+			assert all([isinstance(i, (int, float)) for i in cfg["box_transform_weights"]])
 			
 			assert isinstance(cfg["TRAIN"]["iou_thresholds"], (list, tuple))
 			assert len(cfg["TRAIN"]["iou_thresholds"]) == 2
 			assert all([is_procent(i) for i in cfg["TRAIN"]["iou_thresholds"]])
 			assert cfg["TRAIN"]["iou_thresholds"][0] <= cfg["TRAIN"]["iou_thresholds"][1]
 
-			assert isinstance(cfg["LOSS"]["global_weight"], float)
+			assert isinstance(cfg["LOSS"]["global_weight"], (int, float))
 			assert is_procent(cfg["LOSS"]["box_reg_weight"])
 			assert cfg["LOSS"]["bbox_reg_loss_type"] in ["smooth_l1", "giou"]
 

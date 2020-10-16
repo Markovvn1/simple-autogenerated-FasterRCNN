@@ -1,7 +1,7 @@
 import os
 import sys
 import yaml
-from builder import Builder
+from builder import build_model
 
 def unknown_value(value):
 	print(f"Неизвестное значение {value}\n")
@@ -32,9 +32,4 @@ if not os.path.isfile(sys.argv[2]):
 with open(sys.argv[2], "r") as f:
 	cfg = yaml.safe_load(f)
 
-assert cfg["name"] in ["FASTER_RCNN"]
-
-input_point = {"FASTER_RCNN": "model.FasterRCNN"}[cfg["name"]]
-
-builder = Builder(engine="pytorch", output_dir="build")
-builder.build(input_point, {"mode": mode}, cfg[cfg["name"]])
+build_model(cfg, mode, output_dir="build")

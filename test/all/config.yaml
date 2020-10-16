@@ -34,14 +34,14 @@ FASTER_RCNN:
         smooth_l1_beta: 1.0  # Используется только если bbox_reg_loss_type == "smooth_l1"
       TRAIN:  # Парамеры для обучения
         pre_topk: 2000
-        nms_thress: 0.7
+        nms_thresh: 0.7
         post_topk: 1000
         batch_size_per_image: 256  # Количество изображений используемых для обучения RPN
         positive_fraction: 0.5  # Процент положительных изображений в минибатче
         iou_thresholds: [0.3, 0.7]  # Пороги для определения является ли anchor background или foreground
       TEST:  # Параметры для тестирования
         pre_topk: 1000
-        nms_thress: 0.7
+        nms_thresh: 0.7
         post_topk: 1000
   ROI_HEADS:
     name: "STANDARD"
