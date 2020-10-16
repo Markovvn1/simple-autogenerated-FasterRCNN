@@ -21,11 +21,11 @@ class ModuleBuilder(ModuleBuilderBase):
 
 def _generate(global_params, dep):
 	res = []
-	res.append("import torch\n\n")
+	res.append("import torch\n")
 
 
 	if "boxes.clamp_" in dep:
-		res.append("""
+		res.append("""\n
 def clamp_(boxes, box_size):
 	\"\"\"
 		Clip (in place) the boxes by limiting x coordinates to the range [0, width]
@@ -40,7 +40,7 @@ def clamp_(boxes, box_size):
 
 
 	if "boxes.nonempty" in dep:
-		res.append("""
+		res.append("""\n
 def nonempty(boxes, threshold: float=0.0):
 	\"\"\"
 	Find boxes that are non-empty.
@@ -57,7 +57,7 @@ def nonempty(boxes, threshold: float=0.0):
 
 
 	if "boxes.xywh2xyxy" in dep:
-		res.append("""
+		res.append("""\n
 def xywh2xyxy(boxes):
 	res = torch.empty_like(boxes)
 	wh_half = boxes[..., 2:] / 2
@@ -67,7 +67,7 @@ def xywh2xyxy(boxes):
 
 
 	if "boxes.xyxy2xywh" in dep:
-		res.append("""\
+		res.append("""\n
 def xyxy2xywh(boxes):
 	res = torch.empty_like(boxes)
 	res[..., :2] = (boxes[..., 2:] + boxes[..., :2]) / 2

@@ -1,6 +1,6 @@
 from pkg.module_builder import ModuleBuilderBase
 
-# TODO: Проверить что при создании только StandardRPNHead не создались боксы
+
 class ModuleBuilder(ModuleBuilderBase):
 
 	def __init__(self):
@@ -16,7 +16,7 @@ class ModuleBuilder(ModuleBuilderBase):
 
 		assert isinstance(cfg["TRAIN"]["iou_thresholds"], list) and len(cfg["TRAIN"]["iou_thresholds"]) == 2
 		assert is_procent(cfg["TRAIN"]["iou_thresholds"][0]) and is_procent(cfg["TRAIN"]["iou_thresholds"][1])
-		assert cfg["TRAIN"]["iou_thresholds"][0] < cfg["TRAIN"]["iou_thresholds"][1]
+		assert cfg["TRAIN"]["iou_thresholds"][0] <= cfg["TRAIN"]["iou_thresholds"][1]
 
 		ratios = cfg["ANCHOR_GENERATOR"]["ratios"]
 		sizes = cfg["ANCHOR_GENERATOR"]["sizes"]
@@ -66,9 +66,12 @@ class ModuleBuilder(ModuleBuilderBase):
 		res = []
 		res.append("""\
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision.ops.boxes as box_ops\n""")
+import torch.nn as nn\n""")
+
+		if "rpn.StandardRPNHead" in dep or "rpn.RPN" in dep:
+			res.append("import torch.nn.functional as F\n")
+		if "rpn.SelectRPNProposals" in dep:
+			res.append("import torchvision.ops.boxes as box_ops\n")
 		if global_params["mode"] == "train" and "rpn.RPN" in dep:
 			res.append(f"from fvcore.nn import {dep['rpn.RPN']['LOSS']['bbox_reg_loss_type']}_loss\n")
 
