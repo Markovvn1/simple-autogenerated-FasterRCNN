@@ -116,6 +116,8 @@ nms_thresh={cfg["ROI_HEADS"][cfg["ROI_HEADS"]["name"]]["TEST"]["nms_thresh"]}, t
 		Args:
 			images (list[tensor]): лист, содержащий картинки в виде тензора с
 				размером (in_channels, Hi, Wi)
+		Returns:
+			TODO (output already sorted)
 		\"\"\"""")
 	if mode == "test":
 		res.append("""

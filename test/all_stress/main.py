@@ -1,7 +1,8 @@
 import torch
-from build.model import FasterRCNN
+from model import FasterRCNN
 
 net = FasterRCNN(in_channels=3, num_classes=5).cuda()
+# net.backbone.bottom_up.freeze(2)
 net([torch.rand(3, 512, 512).cuda()])
 net([torch.rand(3, 512, 512).cuda()])
 

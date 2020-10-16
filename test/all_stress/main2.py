@@ -2,11 +2,12 @@ import time
 import torch
 from torch import optim
 
-from build.model import FasterRCNN
+from model import FasterRCNN
 
 net = FasterRCNN(in_channels=3, num_classes=5).cuda()
 
 net.load_state_dict(torch.load("weight.pt"))
+net.backbone.bottom_up.freeze(2)
 optimizer = optim.Adam(net.parameters())
 
 data = [torch.load("data.pt").cuda()]

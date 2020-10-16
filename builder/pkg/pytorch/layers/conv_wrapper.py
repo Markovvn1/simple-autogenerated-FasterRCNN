@@ -29,17 +29,17 @@ from fvcore.nn import weight_init
 
 class Conv2d(nn.Conv2d):
 
-	def __init__(self, in_channels, out_channels, **kwargs):
+	def __init__(self, in_channels, out_channels, *args, **kwargs):
 		norm_cls = kwargs.pop("norm_cls", None)
 		init = kwargs.pop("init", None)
-		super().__init__(in_channels, out_channels, **kwargs)
+		super().__init__(in_channels, out_channels, *args, **kwargs)
 		self.norm_cls = norm_cls
 		self.norm = norm_cls(out_channels) if norm_cls is not None else lambda x: x
 
 		if init is not None:
 			weight_init.__getattribute__(init)(self)
 
-		self.conv_args = (in_channels, out_channels)
+		self.conv_args = (in_channels, out_channels, *args)
 		self.conv_kwargs = kwargs
 
 	def forward(self, x):

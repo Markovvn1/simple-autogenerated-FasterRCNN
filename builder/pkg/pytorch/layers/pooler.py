@@ -22,7 +22,7 @@ class ModuleBuilder(ModuleBuilderBase):
 
 	def _init_file(self, dep):
 		res = ", ".join([i[i.find(".")+1:] for i in dep.keys()])
-		return "from .freeze_batchnorm import " + res
+		return "from .pooler import " + res
 
 	def _generate(self, global_params, dep, childs):
 		return _generate(global_params, dep)

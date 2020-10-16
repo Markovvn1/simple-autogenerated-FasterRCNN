@@ -1,5 +1,5 @@
 import torch
-from build.model import FasterRCNN
+from model import FasterRCNN
 
 net = FasterRCNN(in_channels=3, num_classes=5).cuda()
 
