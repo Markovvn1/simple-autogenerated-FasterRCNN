@@ -85,17 +85,17 @@ import torch.nn as nn\n""")
 		if fvcore:
 			res.append(f"from fvcore.nn import {', '.join(fvcore)}\n")
 
-		first = False
+		first = True
 
 		utils = {"box_transform.BoxTransform", "matcher.Matcher", "subsampler.Subsampler"} & childs.keys()
 		if [1 for i in childs.keys() if i[:i.find(".")] == "boxes"]: utils.add("boxes.Boxes")
 		if utils:
-			first = True
+			first = False
 			res.append("\nfrom ..utils import " + ", ".join([i[i.find(".")+1:] for i in utils]) + "\n")
 
 		layers = {"conv_wrapper.Conv2d", "freeze_batchnorm.FrozenBatchNorm2d", "pooler.RoIPooler"} & childs.keys()
 		if layers:
-			if not first: res.append("\n")
+			if first: res.append("\n")
 			res.append("from ..layers import " + ", ".join([i[i.find(".")+1:] for i in layers]) + "\n")
 
 

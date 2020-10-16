@@ -22,7 +22,8 @@ class ModuleBuilderBase:
 	def build(self, file_name, global_params):
 		if not self._modules: return
 
-		os.makedirs(os.path.dirname(file_name), exist_ok=True)
+		dir_name = os.path.dirname(file_name)
+		if dir_name: os.makedirs(dir_name, exist_ok=True)
 		with open(file_name, "w") as f:
 			f.write(self._generate(global_params, self._modules, self._childs))
 
