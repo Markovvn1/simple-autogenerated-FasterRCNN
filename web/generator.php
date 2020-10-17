@@ -28,15 +28,15 @@ $output = shell_exec($command." '".$request."'");
 
 if (is_dir($output))
 {
-	shell_exec("cd \"".$output."\" && zip -r9 build.zip build");  # create zip
+	shell_exec("cd \"".$output."\" && zip -r9 model.zip model");  // create zip
 
-	# load file
+	// load file
 	header('Content-Type: application/zip');
 	header("Content-Transfer-Encoding: Binary"); 
-	header("Content-disposition: attachment; filename=\"build.zip\""); 
-	readfile($output."/build.zip");
+	header("Content-disposition: attachment; filename=\"model.zip\""); 
+	readfile($output."/model.zip");
 
-	shell_exec("rm -rf \"".$output."\"");  # delete all
+	shell_exec("rm -rf \"".$output."\"");  // delete all
 }
 else
 	echo $output;

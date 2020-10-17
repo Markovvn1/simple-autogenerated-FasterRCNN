@@ -34,10 +34,6 @@ function is_model($model)
 			include $file_name;
 		else
 			echo "<h3>Error: model not found</h3>";
-		
-		// if $_GET["model"] = "faster_rcnn"
-		// if (is_model("faster_rcnn")) include 'models/faster_rcnn.php';
-
 		?>
 
 		<dev class="footer-wrapper">

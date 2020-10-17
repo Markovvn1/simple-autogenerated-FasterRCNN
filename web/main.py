@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import random
+import shutil
 
 from builder import build_model  # Переместите ../builder в web
 
@@ -42,6 +43,8 @@ def choose_dir(temp_dir):
 
 os.chdir(os.path.dirname(__file__))  # go to home dir
 
+base_folder = None
+
 try:
 	cfg = get_input()
 	mode = cfg.pop("mode")
@@ -50,14 +53,18 @@ try:
 	cfg = {"name": model_type, model_type: cfg}
 
 	base_folder = choose_dir("workdir/res")
-	output_dir = os.path.join(base_folder, "build")
+	output_dir = os.path.join(base_folder, "model")
+	base_folder = os.path.abspath(base_folder)
 
 	# build net
 	build_model(cfg, mode, output_dir, engine)
 
-	print(os.path.abspath(base_folder), end="")
+	print(base_folder, end="")
 
 except Exception as e:
+	if base_folder is not None:
+		shutil.rmtree(base_folder, ignore_errors=True)
+
 	tb = e.__traceback__
 	while tb.tb_next is not None: tb = tb.tb_next
 
