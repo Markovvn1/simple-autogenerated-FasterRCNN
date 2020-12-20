@@ -35,10 +35,10 @@ def choose_dir(temp_dir):
 	while True:
 		dir_name = os.path.join(temp_dir, str(random.randint(0, 999999)))
 		try:
-			os.mkdir(dir_name)
+			os.makedirs(dir_name, exist_ok=True)
 			return dir_name
-		except FileExistsError as e:
-			pass
+		except PermissionError as e:
+			raise PermissionError(13, "Failed to create 'workdir' folder")
 
 
 os.chdir(os.path.dirname(__file__))  # go to home dir
