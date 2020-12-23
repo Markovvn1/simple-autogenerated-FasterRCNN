@@ -23,21 +23,33 @@ if ($_POST["_model_type"] == "faster_rcnn")
 
 $request = json_encode($_POST);
 $command = escapeshellcmd(realpath("main.py"));
-$output = shell_exec($command." '".$request."'");
-// echo nl2br($output);
-
-if (is_dir($output))
+$output=null;
+$retval=null;
+exec("PYTHONIOENCODING=utf-8 ".$command." '".$request."'", $output, $retval);
+if ($retval != 0 || count($output) != 1 || !is_dir($output[0]))
 {
-	shell_exec("cd \"".$output."\" && zip -r9 model.zip model");  // create zip
-
-	// load file
-	header('Content-Type: application/zip');
-	header("Content-Transfer-Encoding: Binary"); 
-	header("Content-disposition: attachment; filename=\"model.zip\""); 
-	readfile($output."/model.zip");
-
-	shell_exec("rm -rf \"".$output."\"");  // delete all
+    echo "Python script failed with status code $retval\n";
+    echo '<pre>'; print_r(implode("\n", $output)); echo '</pre>';
+    exit;
 }
-else
-	echo $output;
+
+$work_dir = $output[0];
+$output=null;
+exec("cd \"".$work_dir."\" && zip -r9 model.zip model", $output, $retval);  // create zip
+
+if ($retval != 0)
+{
+    echo "Zip failed with status code $retval\n";
+    echo '<pre>'; print_r(implode("\n", $output)); echo '</pre>';
+    exit;
+}
+
+// load file
+header('Content-Type: application/zip');
+header("Content-Transfer-Encoding: Binary");
+header("Content-disposition: attachment; filename=\"model.zip\"");
+readfile($work_dir."/model.zip");
+
+shell_exec("rm -rf \"".$work_dir."\"");  // delete all
+
 ?>

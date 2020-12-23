@@ -19,7 +19,7 @@ def build_model(cfg, mode, output_dir, engine="pytorch"):
 	builder.add_module(input_point, cfg[cfg["name"]])
 	builder.build(output_dir)
 
-	with open(os.path.join(output_dir, "config.yaml"), "w") as f:
+	with open(os.path.join(output_dir, "config.yaml"), "w", encoding='utf-8') as f:
 		f.write(_yaml_dump(cfg))
 
 
@@ -98,7 +98,7 @@ class Builder:
 			content = [i.init_file() for i in items]
 			content = [i for i in content if i]
 			if not content: continue
-			with open(os.path.join(dir_name, "__init__.py"), "w") as f:
+			with open(os.path.join(dir_name, "__init__.py"), "w", encoding='utf-8') as f:
 				f.write("\n".join(content) + "\n")
 
 		os.chdir(last_dir)  # go to saved dir

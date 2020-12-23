@@ -1,4 +1,5 @@
-#!/home/vova/anaconda3/bin/python3
+#!/usr/bin/env python3
+
 import os
 import sys
 import json
